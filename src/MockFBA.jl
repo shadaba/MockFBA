@@ -3,12 +3,28 @@ module MockFBA
 #using LoopVectorization
 using FITSIO
 using YAML
+using CSV
 using JLD2
 using Formatting
 using Printf
+using DelimitedFiles
+using DataInterpolations
+using StaticArrays
+using LoopVectorization
+using DataFrames
+using CodecLz4
 
 export preprocess_tracer
+
 include("FBA_utility.jl")
+include("Harware.jl")
+include("Tiles.jl")
+include("Geometry.jl")
+include("Positioner.jl")
+include("ZonesTargets.jl")
+
+#Should be load for development but not deployment
+include("PlotLibrary.jl")
 
 """This goes through the full proe-process step for a particular tracer
  Steps:
