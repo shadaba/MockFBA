@@ -126,16 +126,32 @@ end
 
 """Rotates the points in poly around the axis
 by cos(theta),sin(theta)
+
+diff_v: optional to use pre-allocated array for intermediate step for speed
+cos_sin: optional to use pre-allocated array for intermediate step for speed
+cos_sin_sum: optional to use pre-allocated array for intermediate step for speed
 """
-function poly_rotate_axis!(poly_in,poly_out,cstheta,axis)
+function poly_rotate_axis!(poly_in,poly_out,cstheta,axis;
+    diff_v=zeros(Float64,2),cos_sin=zeros(Float64,2),cos_sin_sum=zeros(Float64,2))
     for ii in 1:size(poly_in,1)
-        poly_out[ii,:] .=point_rotate_axis(poly_in[ii,:],cstheta,axis)
+        point_rotate_axis!(view(poly_in,ii,:),cstheta,axis,view(poly_out,ii,:);
+         diff_v=diff_v,cos_sin=cos_sin,cos_sin_sum=cos_sin_sum)
     end  
 end
 
-
-function point_rotate_axis(point_in,cstheta,axis)
-    diff_v=point_in .- axis
+"""
+Apply a rotation to a point along the axis
+point_in: input point x,y coordinate
+point_out: x,y co-ordinate after rotation
+cstheta: [cos(theta, sin(theta)] for rotation by theta
+axis: [0,0] : center about which rotation is needed
+diff_v: optional to use pre-allocated array for intermediate step for speed
+cos_sin: optional to use pre-allocated array for intermediate step for speed
+cos_sin_sum: optional to use pre-allocated array for intermediate step for speed
+"""
+function point_rotate_axis!(point_in,cstheta,axis,point_out;
+        diff_v=zeros(Float64,2),cos_sin=zeros(Float64,2),cos_sin_sum=zeros(Float64,2))
+    diff_v .= point_in .- axis
     if((diff_v[1]==0) & (diff_v[2]==0))
         return point_in[1],point_in[2]
     end
@@ -143,24 +159,33 @@ function point_rotate_axis(point_in,cstheta,axis)
     rad=sqrt(sum(diff_v.^2))
 
     #cos_sin of difference vector
-    cos_sin=diff_v ./rad
+    cos_sin .= diff_v ./rad
 
     #sum of angles cos(A+B) and sin (A+B) rules
-    cos_sin_sum=[cos_sin[1]*cstheta[1] - cos_sin[2]*cstheta[2],
+    cos_sin_sum .= [cos_sin[1]*cstheta[1] - cos_sin[2]*cstheta[2],
                  cos_sin[1]*cstheta[2] + cos_sin[2]*cstheta[1]  ]
 
     #rotation and translation
-    return [axis[1]+(rad*cos_sin_sum[1]), axis[2]+(rad*cos_sin_sum[2])]
+    point_out[1]=axis[1]+(rad*cos_sin_sum[1])
+    point_out[2]=axis[2]+(rad*cos_sin_sum[2])
 end
 
 
 
 """moves the positioner to a theta phi position
 Adapted from desihub/fiberassign
+diff_v: optional to use pre-allocated array for intermediate step for speed
+cos_sin: optional to use pre-allocated array for intermediate step for speed
+cos_sin_sum: optional to use pre-allocated array for intermediate step for speed
+csthetha: optional to use pre-allocated array for intermediate step for speed
+csphi: optional to use pre-allocated array for intermediate step for speed
 """
-function move_positioner_to_theta_phi!(pos::POSRobotBody,theta,phi)
-    cstheta = [cos(theta),sin(theta)]
-    csphi = [cos(phi),sin(phi)]
+function move_positioner_to_theta_phi!(pos::POSRobotBody,theta,phi;
+    diff_v=zeros(Float64,2),cos_sin=zeros(Float64,2),cos_sin_sum=zeros(Float64,2),
+    cstheta=zeros(Float64,2),csphi=zeros(Float64,2))
+    
+    cstheta .= [cos(theta),sin(theta)]
+    csphi .= [cos(phi),sin(phi)]
     
 
     #// Move the phi polygon into the fully extended position along the X axis.
@@ -176,16 +201,20 @@ function move_positioner_to_theta_phi!(pos::POSRobotBody,theta,phi)
     #@show "1: ",pos.axis_on_target,pos.arms[1]
 
     #// Rotate fully extended positioner an angle of theta about the origin.
-    poly_rotate_axis!(view(pos.body_orig,1:nT,:),view(pos.body_on_target,1:nT,:),cstheta,[0.0,0.0])
-    poly_rotate_axis!(view(pos.head_on_target,1:nP,:),view(pos.head_on_target,1:nP,:),cstheta,[0.0,0.0])
+    poly_rotate_axis!(view(pos.body_orig,1:nT,:),view(pos.body_on_target,1:nT,:),cstheta,[0.0,0.0],
+        diff_v=diff_v,cos_sin=cos_sin,cos_sin_sum=cos_sin_sum)
+    poly_rotate_axis!(view(pos.head_on_target,1:nP,:),view(pos.head_on_target,1:nP,:),cstheta,[0.0,0.0],
+        diff_v=diff_v,cos_sin=cos_sin,cos_sin_sum=cos_sin_sum)
     #rotate the axis
-    pos.axis_on_target .= point_rotate_axis(pos.axis_on_target,cstheta,[0.0,0.0])
+    point_rotate_axis!(pos.axis_on_target,cstheta,[0.0,0.0],pos.axis_on_target,
+        diff_v=diff_v,cos_sin=cos_sin,cos_sin_sum=cos_sin_sum)
     
     #@show "2: ",pos.axis_on_target,cstheta
 
     #// Rotate just the phi arm an angle phi about the theta arm center.
     #shpphi.rotation(csphi);
-    poly_rotate_axis!(view(pos.head_on_target,1:nP,:),view(pos.head_on_target,1:nP,:),csphi,pos.axis_on_target)
+    poly_rotate_axis!(view(pos.head_on_target,1:nP,:),view(pos.head_on_target,1:nP,:),csphi,pos.axis_on_target,
+        diff_v=diff_v,cos_sin=cos_sin,cos_sin_sum=cos_sin_sum)
 
   
     #// Translate the whole positioner to the center.
@@ -228,8 +257,6 @@ function load_positioner_neighbours!(pos_cur,pindex,fp_bound,fp_dic,exc_dic,pos_
     end
     
     #@show zone_x,zone_y,zone_xy
-    
-    index
     count_pos=1
     for zx in maximum([zone_x-1,1]):minimum([zone_x+1,fp_bound.nx])
         for zy in maximum([zone_y-1,1]):minimum([zone_y+1,fp_bound.ny])
@@ -340,4 +367,3 @@ function positioner_collided(pos1,pos2)
     
     return false
 end
-

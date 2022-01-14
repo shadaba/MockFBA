@@ -1,7 +1,6 @@
 #Contain the Zone_target structure to load hold and manipulate the targets in a zone
 """loads the targets in the zone and keep track of whether a newzone in needed to be loaded
 """
-
 struct Zone_Target
     #Loads the targets relvant for a particular zone
     #Any thing stored in two element array will always asume body first and head second
@@ -102,4 +101,3 @@ function load_target_zone(zone_target::Zone_Target,zone_x,zone_y,fp_bound,target
     end
 
 end
-

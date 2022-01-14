@@ -459,6 +459,12 @@ version = "0.3.6"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
+[[deps.LoggingExtras]]
+deps = ["Dates", "Logging"]
+git-tree-sha1 = "dfeda1c1130990428720de0024d4516b1902ce98"
+uuid = "e6f89c97-d47a-5376-807f-9c37f3926c36"
+version = "0.4.7"
+
 [[deps.Lz4_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "5d494bc6e85c4c9b626ee0cab05daa4085486ab1"
@@ -519,6 +525,12 @@ deps = ["DataStructures", "LinearAlgebra", "MutableArithmetics"]
 git-tree-sha1 = "fa6ce8c91445e7cd54de662064090b14b1089a6d"
 uuid = "102ac46a-7ee4-5c85-9060-abc95bfdeaa3"
 version = "0.4.2"
+
+[[deps.Mustache]]
+deps = ["Printf", "Tables"]
+git-tree-sha1 = "21d7a05c3b94bcf45af67beccab4f2a1f4a3c30a"
+uuid = "ffc61752-8dc7-55ee-8c37-f3e9cdd09e70"
+version = "1.0.12"
 
 [[deps.MutableArithmetics]]
 deps = ["LinearAlgebra", "SparseArrays", "Test"]

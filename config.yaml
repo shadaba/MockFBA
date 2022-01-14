@@ -1,0 +1,31 @@
+RandomSeed: 1
+steps: ["pre-process","assignment","post-process"]
+focal_plane:
+  focalplane_dir: "/Users/shadab/Documents/Projects/MockFBA/focalplane/"
+  focalplane_dir_jld2: "/Users/shadab/Documents/Projects/MockFBA/focalplane_jld2/"
+  date: "2019-09-16T00:00:00"
+TILES:
+  PROGRAM: "DARK"
+  tile_file: "/Users/shadab/Documents/Projects/MockFBA/footprint/Tiles_year1.fits"
+sky: "SGC"
+OUTPUT:
+  JLD2_dir: "/Users/shadab/Documents/Projects/MockFBA/mocks/JLD2_data/"
+  pre-process-tag: "pre"
+  ThetaPhi_pos: false
+  FBA-tag: "FBA_ph000"
+  post-process-tag: "post"
+target:
+  QSO:
+    FITSfile: ""
+    JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks/JLD2_data/QSO_ph000.jld2"
+    Num_obs: 1
+  ELG:
+    FITSfile: ""
+    JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks/JLD2_data/ELG_ph000.jld2"
+    Num_obs: 1
+  LRG:
+    FITSfile: ""
+    JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks/JLD2_data/LRG_ph000.jld2"
+    Num_obs: 1
+group: "SGC"
+NumFBARealization: 100

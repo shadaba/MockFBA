@@ -294,7 +294,7 @@ function load_hw_state_file(config;date="2019-09-16T00:00:00")
     else
         file_st="$(config["focalplane_dir"])desi-state_$(date).ecsv"
         if(! isfile(file_st))
-            warn("File no Found $(file_st)")
+            warn("File not Found $(file_st)")
         else#Load the csv file convert to jld2 file
             df=CSV.read(file_st, DataFrame;delim=" ",comment="#",header=1)
             #Write the JLD2 file
@@ -314,7 +314,7 @@ function transform_dictionary_flatJLD(jldfile,dicin)
         for tkey in keys(dicin)
             for pkey in keys(dicin[tkey])
                 for lkey in keys(dicin[tkey][pkey])
-                    nel=length(desi_exc[tkey][pkey][lkey])
+                    nel=length(dicin[tkey][pkey][lkey])
                     if(nel==0)
                         continue
                     elseif(nel>1)
@@ -322,7 +322,7 @@ function transform_dictionary_flatJLD(jldfile,dicin)
                             Ignoring elements after the first one please chekc the raw file for errors")
                     end
                     
-                    tarr=desi_exc[tkey][pkey][lkey][1]
+                    tarr=dicin[tkey][pkey][lkey][1]
                     nseg=length(tarr)
                     if(lkey=="circles")
                         out_arr=[tarr[1][1],tarr[1][2],tarr[2][1]]
@@ -384,14 +384,18 @@ function DataFrame_TO_JLD2(df,jldfile,base_cols;compress=false)
     #tdic_base=Dict()
     #tdic_extra=Dict()
     
-    jldopen(jldfile, "a+",compress=LZ4FrameCompressor()) do file
+    #jldopen(jldfile, "a+",compress=LZ4FrameCompressor()) do file
+    jldopen(jldfile, "a+") do file
         for col in names(df)
-            if(col in base_cols)
+            #if(col in base_cols)
+            if df[!,col] isa Array
                 #tdic_base[col]=df[!,col]
-                write(file,"$(col)",df[!,col],compress=true)
+                write(file,"$(col)",df[!,col])#,compress=false)
+                #println(col,"  isa")
             else
                 #tdic_extra[col]=df[!,col]
-                write(file,"$(col)",df[!,col],compress=true)
+                write(file,"$(col)",df[!,col])#,compress=false)
+                #println(col," not isa")
             end
         end
 
@@ -408,7 +412,11 @@ function read_columns_jld2(jldfile,columns)
     tdic=Dict()
     jldopen(jldfile,"r") do file
         for col in columns
-            tdic[col]=read(file,col)
+            try
+               tdic[col]=read(file,col)
+            catch e
+                println(jldfile,col,e)
+            end
         end
     end
     return tdic
@@ -462,9 +470,11 @@ function load_hw_full_FocalPlane!(config;date="2019-09-16T00:00:00",
         end
         ist +=1
     end
-  
+
+    #add date to the dictionaries  
     fp_dic["tile_date"] =date
     exclusion_dic["tile_date"]=date 
+
     return fp_dic,exclusion_dic
 end
 

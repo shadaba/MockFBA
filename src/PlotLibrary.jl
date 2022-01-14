@@ -1,5 +1,6 @@
 #Any plotting functionality should be here
 
+
 """
 Function to make plot of positioners
 Takes input a POSRobotBody structure and plots the on_target location of positioner
@@ -35,10 +36,37 @@ function plot_moved_positioner(pos;linecolor=:black,bodycolor=:blue,headcolor=:r
 end
 
 
-"""plots the assignment in a tile
-Currently assumes targets with three different priority
-Should be generaziled later if this tool is used
+
+
+"""plots a circle with given properties
 """
+function plot_circle(x,y,rad;color=:blue,linecolor=:black,alpha=0.2)
+    theta=LinRange(0,2*pi,500)
+    plot!(x .+ rad.*sin.(theta), y.+ rad.*cos.(theta),
+        seriestype=[:shape,],lw=0.5,c=color,linecolor=linecolor,
+        legend=false,fillalpha=alpha,aspect_ratio=1)
+end
+
+
+"""
+plots the target in the zone and positioner
+as as any auxiliary informatio
+"""
+function plot_zones(pos,zone_target,fp_dic)
+    nc=zone_target.ntarget[1]
+    plot(zone_target.X_FP[1:nc],zone_target.Y_FP[1:nc],seriestype=:scatter,color=:black)
+    ifp=fp_dic["zone_map"][zone_target.zones[3]]
+    #plot!(fp_dic["OFFSET_X"][ifp[1]:ifp[2]],fp_dic["OFFSET_Y"][ifp[1]:ifp[2]],
+    #    seriestype=:scatter,color=:green,markersize=10)
+    
+    iass=findall(zone_target.pot_ass[1:nc])
+    plot!(zone_target.X_FP[iass],zone_target.Y_FP[iass],seriestype=:scatter,color=:red)
+    icoll=findall(zone_target.pot_coll[1:nc])
+    plot!(zone_target.X_FP[icoll],zone_target.Y_FP[icoll],seriestype=:scatter,color=:blue) 
+    
+    
+end
+
 function plot_tile_assignment(position_assigned,targets_dic,fp_dic;ri=1,outfile="test.png")
     
     iass=position_assigned[:,ri] .>0
@@ -83,34 +111,5 @@ function plot_tile_assignment(position_assigned,targets_dic,fp_dic;ri=1,outfile=
         legend = false,aspect_ratio=1)
     savefig(outfile)
     println("Generated: $(outfile)")
-    
-end
-
-"""plots a circle with given properties
-"""
-function plot_circle(x,y,rad;color=:blue,linecolor=:black,alpha=0.2)
-    theta=LinRange(0,2*pi,500)
-    plot!(x .+ rad.*sin.(theta), y.+ rad.*cos.(theta),
-        seriestype=[:shape,],lw=0.5,c=color,linecolor=linecolor,
-        legend=false,fillalpha=alpha,aspect_ratio=1)
-end
-
-
-"""
-plots the target in the zone and positioner
-as as any auxiliary informatio
-"""
-function plot_zones(pos,zone_target,fp_dic)
-    nc=zone_target.ntarget[1]
-    plot(zone_target.X_FP[1:nc],zone_target.Y_FP[1:nc],seriestype=:scatter,color=:black)
-    ifp=fp_dic["zone_map"][zone_target.zones[3]]
-    #plot!(fp_dic["OFFSET_X"][ifp[1]:ifp[2]],fp_dic["OFFSET_Y"][ifp[1]:ifp[2]],
-    #    seriestype=:scatter,color=:green,markersize=10)
-    
-    iass=findall(zone_target.pot_ass[1:nc])
-    plot!(zone_target.X_FP[iass],zone_target.Y_FP[iass],seriestype=:scatter,color=:red)
-    icoll=findall(zone_target.pot_coll[1:nc])
-    plot!(zone_target.X_FP[icoll],zone_target.Y_FP[icoll],seriestype=:scatter,color=:blue) 
-    
     
 end

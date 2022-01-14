@@ -13,6 +13,8 @@ using StaticArrays
 using LoopVectorization
 using DataFrames
 using CodecLz4
+using Random
+using Statistics
 
 export preprocess_tracer
 

@@ -635,21 +635,29 @@ function Append_TileID(jldfile,tile_file,group,program,npass,tile_radius_indeg,o
 end
 
 
-
-function Load_tracers_intile(jldfile,tile_id,tile_pass,group,columns)
+""" load all objects in a particular tile of given tracer
+    also returns indices with reference to the group which can be used to load 
+    or write back additional properties later
+    if the tile_pass>0 then also look for object assignemnt in lower pass tiles and return a collision
+    array
+"""
+function Load_tracers_intile(config,tracer,tile_id,tile_pass,group,columns;numobs_need=1,num_fba=1)
     #= load all objects in a particular tile
     also returns indices with reference to the group which can be used to load 
     or write back additional properties later
     =#
     
+    jldfile=config["target"][tracer]["JLDfile" ]
+
+
     #load the zones in group
     jld_order=traverse_group(jldfile,group)
-    
+
     #load the listing to identify the zones which has tile
     listing=load(jldfile,"$(group)/listing")
-    
-    
-    indsel=[] 
+
+
+    indsel=[]
     #Dictionary to store the tracer properties
     tracer_tile=Dict()
     tracer_tile["ref_group"]=group
@@ -659,32 +667,117 @@ function Load_tracers_intile(jldfile,tile_id,tile_pass,group,columns)
     for col in columns
         tracer_tile[col]=[]
     end
-    
+
+    #list of tile which will have over lap in this region
+    collided_tiles=zeros(Int32,0)
+
     for iz in 1:size(jld_order["zone_order"],1)
         tg=jld_order["zone_order"][iz]
-        
+
         #if tileid not in listing then continue
         if( !(tile_id in listing["TILEID"][iz]))
             continue
         end
-        
+
+
         #Now load the tile_id is in this zone
-        
         this_id_arr=load(jldfile,"$(tg)TILEID_PASS$(tile_pass)")
         #It is important to make sure the reference groups are used consistently for indices to work
-        indsel_this=findall(this_id_arr .== tile_id) 
-        
+        indsel_this=findall(this_id_arr .== tile_id)
+
         append!(tracer_tile["index"], indsel_this.+ jld_order["beg_index"][iz] )
-        
+
         for col in columns
             tcol_val=keepat!(load(jldfile,"$(tg)$(col)"),indsel_this)
             append!(tracer_tile[col],tcol_val)
         end
+
+        #find all the tiles colliding with lower passes passes starts with 0
+        if(tile_pass>0)
+            for pre_pass in 0:tile_pass-1
+                pre_id_arr=keepat!(load(jldfile,"$(tg)TILEID_PASS$(pre_pass)"),indsel_this)
+                utiles=unique(pre_id_arr)
+                for ut in utiles
+                    if((!(ut in collided_tiles)) & (ut>0))
+                        append!(collided_tiles,ut)
+                    end
+                end
+                #println(pre_pass,' ',utiles)
+            end
+            #println("colide: ",collided_tiles)
+        end
+    end #end of iz loop
+    
+    #Now load the information whether object is already assigned
+    if(size(collided_tiles,1)>0)
+        count_assigned=count_assignment_tracer(config,tracer,tracer_tile,collided_tiles,num_fba) 
+        #Now populate the collided boolean array:
+        #one set to true will not be considered for assignements
+        tracer_tile["collided"] = count_assigned .>= numobs_need
+    else
+        tracer_tile["collided"] = zeros(Bool,size(tracer_tile["index"],1),num_fba)
     end
+
     return tracer_tile
-    
+
 end
-    
+
+"""Counts the number of time any object is assigned in the given list of tiles
+Only counts for the objects passed in the dictionary
+fba_jldfile : JLD2 file storing assignmnet for the individual tiles
+tracer_tile: A dictionary loaded for a tile along with its index
+tile_list: list of tileID to count the assignmnet in
+num_fba: number of fba realizations was run
+"""
+function count_assignment_tracer(config,tracer,tracer_tile,tile_list,num_fba)
+    #total number od objects 
+    nobj_tile=size(tracer_tile["index"],1)
+    #index to sort the objects in tile by index field
+    tile_isort=sortperm(tracer_tile["index"])
+
+    #allocate memory
+    count_assigned=zeros(nobj_tile,num_fba)
+
+    #scan the colliding tile and count number of assignment
+    for col_tile in tile_list
+        #FBA jldfile for the tile
+	fba_jldfile=TileFBA_FileName(config,col_tile)
+
+	index_pre_tile=load(fba_jldfile,"$(tracer)_index")
+	bool_ass=load(fba_jldfile,"$(tracer)_Bool_ass")
+        #make sure the tile was assigned with consistent num_fba
+	@assert num_fba==size(bool_ass,2) "inconsistent num_fba \nfor tile: $(col_tile) in $(fba_jldfile)"
+
+        #find the sorting permutation
+        isort_perm=sortperm(index_pre_tile)
+
+        #rearrange with sorted index for this tile
+        index_pre_tile=index_pre_tile[isort_perm]
+        bool_ass=bool_ass[isort_perm,:]
+
+        #append the counts #follow the logic of sorted indices
+        ctile=1
+        for ti in 1:size(index_pre_tile,1)
+            while(index_pre_tile[ti]>tracer_tile["index"][tile_isort[ctile]])
+                ctile +=1
+                if(ctile>nobj_tile)
+                    break
+                end
+            end
+
+            if(ctile>nobj_tile)
+                break
+            end
+
+            if(index_pre_tile[ti]==tracer_tile["index"][tile_isort[ctile]])
+                count_assigned[tile_isort[ctile],:] .+= bool_ass[ti,:]
+            end
+        end 
+    end #end of the col_tile loop
+    return count_assigned
+end# end of function
+
+
 
 function pre_process_FITS2JLD_tracer(fname,priority,priority_frac,outfile)
     #= Pre-process a given tracer in following step
@@ -741,4 +834,104 @@ function pre_process_FITS2JLD_tracer(fname,priority,priority_frac,outfile)
     
     close(fin)
     
+end
+
+
+"""
+find the true index same as inbuilt findall but does this inplace avoiding new memory allocation
+returns the number of elements in the output index_arr to be used
+"""
+function find_index!(bool_array,index_arr)
+    nel=0
+    @inbounds for ii in 1:size(bool_array,1)
+        if(bool_array[ii])
+            nel +=1
+            index_arr[nel]=ii
+        end
+    end
+    @assert nel<=size(index_arr,1) "The input index_array $(size(index_arr)) is smaller than needed for output $(nel)"
+    return nel
+end
+
+"""
+find the true index same as inbuilt findall but does this inplace avoiding new memory allocation
+returns the number of elements in the output index_arr to be used
+It performs an AND operation between the two inputs
+"""
+function find_index_AND!(bool_array1,bool_array2,index_arr)
+    nel=0
+    @inbounds for ii in 1:size(bool_array1,1)
+        if(bool_array1[ii] & bool_array2[ii])
+            nel +=1
+            index_arr[nel]=ii
+        end
+    end
+    @assert nel<=size(index_arr,1) "The input index_array $(size(index_arr)) is smaller than needed for output $(nel)"
+    return nel
+end
+
+
+"""
+find the true index same as inbuilt findall but does this inplace avoiding new memory allocation
+returns the number of elements in the output index_arr to be used
+It performs OR operation between the two inputs
+"""
+function find_index_OR!(bool_array1,bool_array2,index_arr)
+    nel=0
+    @inbounds for ii in 1:size(bool_array1,1)
+        if(bool_array1[ii] || bool_array2[ii])
+            nel +=1
+            index_arr[nel]=ii
+        end
+    end
+    @assert nel<=size(index_arr,1) "The input index_array $(size(index_arr)) is smaller than needed for output $(nel)"
+    return nel
+end
+
+using Dates
+
+"""
+Converts a dictionary of events to the msg string desribing the time use
+msg: any string to be prepended
+events_dic: dictionar with array of events and times
+depends in the Dates Package
+example:
+edic=Dict()
+edic["events"]=["full","prepare","Assing"]
+edic["times"] = [now(UTC)]
+sleep(0.5)
+append!(edic["times"],[now(UTC)])
+sleep(0.2)
+append!(edic["times"],[now(UTC)])
+
+convert_events_to_msg(edic,"hello ")
+wil give output:
+"hello  full:0.709 sec(prepare:0.504 sec,Assing:0.205 sec,)"
+"""
+function convert_events_to_msg(events_dic,msg)
+    
+    nevent=length(events_dic["events"])
+    if(nevent==0)
+        return ""
+    end
+    
+    #tdiff=string(Dates.canonicalize(Dates.CompoundPeriod(events_dic["times"][end] - events_dic["times"][1])))
+    tdiff=Dates.DateTime(events_dic["times"][end]) - Dates.DateTime(events_dic["times"][1])
+    tdiff=string(tdiff/Millisecond(1000), " sec")
+    msg=string(msg," ",events_dic["events"][1],":",tdiff)
+    
+    msg_local=""
+    for ii in 2:nevent
+        #tdiff=string(Dates.canonicalize(Dates.CompoundPeriod(events_dic["times"][ii] - events_dic["times"][ii-1])))
+        tdiff=Dates.DateTime(events_dic["times"][ii]) - Dates.DateTime(events_dic["times"][ii-1])
+        tdiff=string(tdiff/Millisecond(1000), " sec,")
+        msg_local=string(msg_local,events_dic["events"][ii],":",tdiff)
+    end
+    
+    if(msg_local=="")
+        return msg
+    else
+        msg_local=string(msg,"(",msg_local,")")
+        return msg_local
+    end
 end
