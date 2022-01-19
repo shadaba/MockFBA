@@ -10,42 +10,41 @@ import MockFBA
 
 using YAML
 
-@show ARGS
-#config=YAML.load_file("NoteBooks/test-output.yml")
-config=YAML.load_file(ARGS[1])
 
-tile_pass=parse(Int32,ARGS[2])
-#how many partition we want this pass to run with
-npartition=parse(Int32,ARGS[3])
-#which partition should I execute now
-mypart=parse(Int32,ARGS[4])
+function main(ARGS)
+    #load the config file 
+    config=YAML.load_file(ARGS[1])
+    #An option to split the calculation in NGC/SGC or use NS for combined
+    group=ARGS[2] 
+    tile_pass=parse(Int32,ARGS[3])
+    #how many partition we want this pass to run with
+    npartition=parse(Int32,ARGS[4])
+    #which partition should I execute now
+    mypart=parse(Int32,ARGS[5])
 
-#load the tiles
-tiles_dic=MockFBA.load_DESI_tiles(config["TILES"]["tile_file"],config["TILES"]["PROGRAM"],
-    tile_pass,config["sky"])
+    #load the tiles
+    tiles_dic=MockFBA.load_DESI_tiles(config["TILES"]["tile_file"],config["TILES"]["PROGRAM"],
+                  tile_pass,group)
 
-#Number of tiles for the current setting
-ntile=size(tiles_dic["TILEID"],1)
-#How many should I execute
-ntile_per_part= Int(ceil(ntile/npartition))
-
-#The indices of tiles I will execute
-beg_index=(mypart*ntile_per_part)+1
-end_index=minimum([beg_index+ntile_per_part-1,ntile])
+    #Number of tiles for the current setting
+    ntile=size(tiles_dic["TILEID"],1)
 
 
+    if(ntile==0)
+        println("No tile to assign in pass=$(tile_pass)\n")
+        return
+    end
+    
+    #The indices of tiles I will execute
+    beg_index,end_index= MockFBA.partition_indices(ntile,npartition,mypart)
 
+    #println("my_indices: $(beg_index) $(end_index) , total_tile: $(ntile)")
 
+    this_index=collect(beg_index:end_index)
+    tile_date="2019-09-16T00:00:00"
+    MockFBA.Run_Many_Tile(config,this_index,tiles_dic;group=group,tile_date=tile_date, plate_scale=nothing,fp_dic=nothing,exc_dic=nothing,verbose=2)
+end
 
-
-
-
-
-println("my_indices: $(beg_index) $(end_index) , total_tile: $(ntile)")
-
-
-
-this_index=collect(beg_index:end_index)
-tile_date="2019-09-16T00:00:00"
-MockFBA.Run_Many_Tile(config,this_index,tiles_dic;tile_date=tile_date, plate_scale=nothing,fp_dic=nothing,exc_dic=nothing,verbose=2)
+#@show ARGS
+main(ARGS)
 

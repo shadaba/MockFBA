@@ -1,31 +1,43 @@
 RandomSeed: 1
+ncpu: 8
 steps: ["pre-process","assignment","post-process"]
 focal_plane:
   focalplane_dir: "/Users/shadab/Documents/Projects/MockFBA/focalplane/"
   focalplane_dir_jld2: "/Users/shadab/Documents/Projects/MockFBA/focalplane_jld2/"
   date: "2019-09-16T00:00:00"
 TILES:
-  PROGRAM: "DARK"
   tile_file: "/Users/shadab/Documents/Projects/MockFBA/footprint/Tiles_year1.fits"
+  #Based on mimum approx distance between tiles
+  tile_radius: 1.645
+  PROGRAM: "DARK"
+  NumPass: 7 
 sky: "SGC"
 OUTPUT:
-  JLD2_dir: "/Users/shadab/Documents/Projects/MockFBA/mocks/JLD2_data/"
+  OUT_dir: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/"
+  JLD2_dir: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/JLD2_data/"
+  FITS_dir: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/FITS_FBA/"
   pre-process-tag: "pre"
   ThetaPhi_pos: false
   FBA-tag: "FBA_ph000"
   post-process-tag: "post"
 target:
   QSO:
-    FITSfile: ""
-    JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks/JLD2_data/QSO_ph000.jld2"
+    FITSfile: "/Users/shadab/Documents/Projects/MockFBA/mocks/QSO/cutsky_QSO_z1.400_AbacusSummit_base_c000_ph000.fits"
+    JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/JLD2_data/QSO_ph000.jld2"
     Num_obs: 1
-  ELG:
-    FITSfile: ""
-    JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks/JLD2_data/ELG_ph000.jld2"
-    Num_obs: 1
+    Priorities: [3400,3200,3000]
+    Priority_fraction: [0.8,0.1,0.1]
   LRG:
-    FITSfile: ""
-    JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks/JLD2_data/LRG_ph000.jld2"
+    FITSfile: "/Users/shadab/Documents/Projects/MockFBA/mocks/LRG/cutsky_LRG_z0.800_AbacusSummit_base_c000_ph000.fits"
+    JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/JLD2_data/LRG_ph000.jld2"
     Num_obs: 1
+    Priorities: [3400,3200,3000]
+    Priority_fraction: [0.05,0.85,0.1]
+  ELG:
+    FITSfile: "/Users/shadab/Documents/Projects/MockFBA/mocks/ELG/cutsky_ELG_z1.100_AbacusSummit_base_c000_ph000.fits"
+    JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/JLD2_data/ELG_ph000.jld2"
+    Num_obs: 1
+    Priorities: [3400,3200,3000]
+    Priority_fraction: [0.001,0.01,0.989]
 group: "SGC"
 NumFBARealization: 100

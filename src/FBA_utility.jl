@@ -141,7 +141,7 @@ function write_JLD2_file(outfile,zone_num,quant_dic)
     #append!(size(zone_num,1),fel_zone)
     #@show(fel_zone,size(fel_zone),size(us_zone))
     
-    quant_write=["RA","DEC","PRIORITY","FITS_index"]
+    quant_write=["RA","DEC","PRIORITY","FITS_index_julia"]
 
     ind_NS=Dict()
     ind_NS["NGC"],ind_NS["SGC"]= split_Galactic_cap(quant_dic["RA"],quant_dic["DEC"],"boolean")
@@ -271,7 +271,7 @@ function load_DESI_tiles(tile_file,program,pass,sky)
     
     #open fits file
     fin=FITS(tile_file)
-    println("Loading tiles from: $(tile_file)")
+    #println("Loading tiles from: $(tile_file)")
     
     nrow=size(read(fin[2],"RA"),1)
     
@@ -722,6 +722,24 @@ function Load_tracers_intile(config,tracer,tile_id,tile_pass,group,columns;numob
 
 end
 
+function debug_minmax(collided,index,tdic;tmsg="")
+   if(sum(collided[:,1])==0)
+      return
+   end
+   indices=index[collided[:,1]]
+   index_minmax=[minimum(indices),maximum(indices)]
+   ind12=indexin(index_minmax,index)
+   for tkey in keys(tdic)
+      if(tdic[tkey] isa Array)
+	 if(size(tdic[tkey],1) == size(index,1))
+             string(tmsg,tkey,tdic[tkey][ind12[1]],tdic[tkey][ind12[2]],",")
+	 end
+      end
+   end
+   println("Debug:",tmsg)
+   return
+end
+
 """Counts the number of time any object is assigned in the given list of tiles
 Only counts for the objects passed in the dictionary
 fba_jldfile : JLD2 file storing assignmnet for the individual tiles
@@ -792,7 +810,7 @@ function pre_process_FITS2JLD_tracer(fname,priority,priority_frac,outfile)
     =#
     
     fin=FITS(fname)
-    println("Loading file: $(fname)")
+    println("$(now(UTC)) PREP Loading file: $(fname)")
     
     #apply footprint and nz selection
     status=read(fin[2],"STATUS")
@@ -800,13 +818,14 @@ function pre_process_FITS2JLD_tracer(fname,priority,priority_frac,outfile)
     #Only for testing to reduce size
     #indsel=indsel[1:1000:size(indsel,1)]
     nobj=size(indsel,1)
-    println("nobj selection (footprint and nz): $(nobj)")
+    println("$(now(UTC)) PREP nobj selection (footprint and nz): $(nobj)")
     
     #read ra,dec of selection
     ra=keepat!(read(fin[2],"RA"),indsel)
     dec=keepat!(read(fin[2],"DEC"),indsel)
+    #redshift=keepat!(read(fin[2],"Z"),indsel)
     
-    println("Assigning zones and priority and sorting")
+    println("$(now(UTC)) PREP Assigning zones and priority and sorting")
     #Assign zone number for each object
     zone_num=assign_sky_zones(ra,dec,20,20)
     #asign_priority
@@ -823,11 +842,12 @@ function pre_process_FITS2JLD_tracer(fname,priority,priority_frac,outfile)
     quant_dic=Dict()
     quant_dic["RA"]=ra[indsel_pr_zone]
     quant_dic["DEC"]=dec[indsel_pr_zone]
+    #quant_dic["Z"]=redshift[indsel_pr_zone]
     quant_dic["PRIORITY"]=obj_priority[indsel_pr_zone]
-    quant_dic["FITS_index"]=indsel[indsel_pr_zone]
+    quant_dic["FITS_index_julia"]=indsel[indsel_pr_zone]
     
 
-    println("Writing to JLD2 file: $(outfile)")
+    println("$(now(UTC)) PREP Writing to JLD2 file: $(outfile)")
     write_JLD2_file(outfile,zone_num,quant_dic)
 
 
@@ -934,4 +954,38 @@ function convert_events_to_msg(events_dic,msg)
         msg_local=string(msg,"(",msg_local,")")
         return msg_local
     end
+end
+
+
+
+"""applly partitions and return indices
+nobj::Integer Numbe of objects needs to be divided
+npartition::Integer number of partitions needed
+mypart: The partition needs to be selected should be between 0 and npartition-1
+"""
+function partition_indices(nobj,npartition,mypart)
+    @assert ((mypart<npartition) & (mypart>=0)) "Selected partion $(mypart) is not in the range 0-$(npartition-1)"
+    #How many should I execute
+    nobj_per_part= Int(floor(nobj/npartition))
+
+    if(nobj_per_part==0)
+        println("Too many partition asked for, setting one object per partition,>$(nobj) partiitons will be empty ")
+        nobj_per_part=1
+        if(mypart<nobj)
+            beg_index=mypart+nobj_per_part
+            end_index=minimum([beg_index,nobj])
+        else
+            beg_index=1
+            end_index=0
+        end
+    else
+        #The indices of tiles I will execute
+        beg_index=(mypart*nobj_per_part)+1
+        end_index=minimum([beg_index+nobj_per_part-1,nobj])
+        if(mypart==npartition-1)
+            end_index=nobj
+        end
+    end
+
+    return beg_index,end_index
 end

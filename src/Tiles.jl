@@ -69,19 +69,19 @@ function sort_ZoneXp_Apply!(zone_xy,Xp,tdic)
     modified_ptr=[] #keep track of al the arrays sorted already to not apply sorting twice
     #Now apply this to all of the target arrays
     for tkey in keys(tdic)
-        if(isa(tdic[tkey],Array))
+        if(tdic[tkey] isa Union{BitArray,Array})
             #this_ptr=pointer_from_objref(tdic[tkey])
             this_ptr=repr(UInt64(pointer_from_objref(tdic[tkey])))
             if((size(tdic[tkey],1)==nxp) & (!(this_ptr in modified_ptr)) )
-	        if(isa(tdic[tkey],Matrix))
-	            tdic[tkey]=tdic[tkey][izone_sort,:]
+	        if(tdic[tkey] isa Union{BitMatrix,Matrix} )
+	            tdic[tkey] .= tdic[tkey][izone_sort,:]
 		else
-	            tdic[tkey]=tdic[tkey][izone_sort]
+	            tdic[tkey] .= tdic[tkey][izone_sort]
 		end
 		append!(modified_ptr,[this_ptr])
                 #println("sorting $(tkey) $(this_ptr)")
-            else
-                println("not sorting ",tkey,size(tdic[tkey],1), this_ptr)
+	    elseif(!(tkey in ["fp_bound","file_map","ntarget"]))
+                println("Warning: not sorting? ",tkey,size(tdic[tkey],1), this_ptr)
             end
         end
     end
@@ -90,8 +90,9 @@ function sort_ZoneXp_Apply!(zone_xy,Xp,tdic)
     #this_ptr=pointer_from_objref(zone_xy)
     this_ptr=repr(UInt64(pointer_from_objref(zone_xy)))
     if(!(this_ptr in modified_ptr) )
-        zone_xy=zone_xy[izone_sort]
+        zone_xy .= zone_xy[izone_sort]
         append!(modified_ptr,[this_ptr])
+	#println("sorting zone_xy $(this_ptr)")
     end
         
     uszone=sort(unique(zone_xy),rev=false)
@@ -192,7 +193,7 @@ end
 This function execute the following steps
 1) load targets in a given tile tile
 """
-function Prepare_tile(config,tile_index,tiles_dic;tile_date="2019-09-16T00:00:00",
+function Prepare_tile(config,tile_index,tiles_dic;group="",tile_date="2019-09-16T00:00:00",
         plate_scale=nothing,fp_dic=nothing,exc_dic=nothing,num_fba=1)
     #get the tile centre 
     telra=tiles_dic["RA"][tile_index]
@@ -214,7 +215,7 @@ function Prepare_tile(config,tile_index,tiles_dic;tile_date="2019-09-16T00:00:00
     end
     
     #Load target
-    targets_dic=load_targets_intile(config,tile_id,tile_pass,config["group"];
+    targets_dic=load_targets_intile(config,tile_id,tile_pass,group;
                     columns=["X_UNIT","Y_UNIT","Z_UNIT","PRIORITY"],num_fba=num_fba)
 
     #convert to focal plane
@@ -634,6 +635,7 @@ function TileAssignment_To_JLD2File(tile_id,config,num_fba,fp_dic,targets_dic,po
     end
     
     #histogram(sum_ass[sum_ass .>0],alpha=0.1)
+    msg_out=""
     for tkey in keys(targets_dic["file_map"])
         tracer=targets_dic["file_map"][tkey][1]
         nthis=find_index_AND!((targets_dic["filekey"].==tkey),(sum_ass .>0),ithis)
@@ -663,10 +665,13 @@ function TileAssignment_To_JLD2File(tile_id,config,num_fba,fp_dic,targets_dic,po
 	   write(file,"$(tracer)_location_ass",location_assignment[ithis[isort],:])
 	   write(file,"$(tracer)_index",targets_dic["index"][ithis[isort]])
         end
-        
+       
+	#number of assignment for the first realization
+	msg_out=string(msg_out,tracer,":",sum(target_assignment[ithis[isort],1])," ")
         #println("written: ",fba_jldfile)
     end
     #println("sum: ",sum(sum_ass .==0),' ',minimum(sum_ass),' ',maximum(sum_ass))
+    return msg_out
 end
 
 """
@@ -678,6 +683,14 @@ function TileFBA_FileName(config,tile_id)
     return outfile
 end
 
+"""
+file to write the fits output of each zone including the information about FBA
+"""
+function ZoneFITS_FileName(config,zone,tracer,group)
+    outdir=string(config["OUTPUT"]["FITS_dir"],config["OUTPUT"]["FBA-tag"],"/tmp/")
+    outfile=string(outdir,group,"_",tracer,"_zone_",zone,".fits.gz")
+    return outfile
+end
 
 """Runs the full assignmnet from disk-to-disk for a single tile
 tile_index : index if the tile in tiles_dic to be assigned
@@ -686,7 +699,7 @@ verbose=0 empty msg
 verbos=1 overall time of the function
 verbose>1 time for all steps
 """
-function Run_Single_Tile(config,tile_index,tiles_dic;tile_date="2019-09-16T00:00:00",
+function Run_Single_Tile(config,tile_index,tiles_dic;group="",tile_date="2019-09-16T00:00:00",
     plate_scale=nothing,fp_dic=nothing,exc_dic=nothing,verbose=0)
     
     events_dic=Dict()
@@ -697,16 +710,15 @@ function Run_Single_Tile(config,tile_index,tiles_dic;tile_date="2019-09-16T00:00
     tile_id=tiles_dic["TILEID"][tile_index]
     if(verbose>0)
         append!(events_dic["times"],[now(UTC)])
-        append!(events_dic["events"],["full"])
+        append!(events_dic["events"],["Time"])
     end
     
     #load data for the tile and focal plane
-    targets_dic,fp_dic,exc_dic=Prepare_tile(config,tile_index,tiles_dic;tile_date=tile_date,
+    targets_dic,fp_dic,exc_dic=Prepare_tile(config,tile_index,tiles_dic;group=group,tile_date=tile_date,
         plate_scale=plate_scale,fp_dic=fp_dic,exc_dic=exc_dic,num_fba=config["NumFBARealization"])
-    
     if(verbose>1)
         append!(events_dic["times"],[now(UTC)])
-        append!(events_dic["events"],["Prepare"])
+        append!(events_dic["events"],["Prep"])
 	#count the number of objects need assignment
 	need_ass=targets_dic["ntarget"]-sum(targets_dic["collided"][:,1])
     end
@@ -719,23 +731,23 @@ function Run_Single_Tile(config,tile_index,tiles_dic;tile_date="2019-09-16T00:00
     
     if(verbose>1)
         append!(events_dic["times"],[now(UTC)])
-        append!(events_dic["events"],["Assignment"])
+        append!(events_dic["events"],["Ass"])
     end
     
     #write the data to file
-    TileAssignment_To_JLD2File(tile_id,config,config["NumFBARealization"],fp_dic,targets_dic,position_assigned)
+    nass_str=TileAssignment_To_JLD2File(tile_id,config,config["NumFBARealization"],fp_dic,targets_dic,position_assigned)
     
     if(verbose>0)
         append!(events_dic["times"],[now(UTC)])
         if(verbose>1)
-            append!(events_dic["events"],["Output"])
+            append!(events_dic["events"],["Out"])
         end
     end
 
     msg_out=string(tile_id)
     #count the number of targets in tile vs number need assignment for the first realization
     if(verbose>1)
-       msg_out=string(msg_out," need/total:",need_ass,"/",targets_dic["ntarget"])
+       msg_out=string(msg_out," targ:",need_ass,"/",targets_dic["ntarget"]," ",nass_str)
     end
 
     return convert_events_to_msg(events_dic,msg_out)
@@ -744,7 +756,7 @@ end
 """Runs the full assignmnet from disk-to-disk for a array of tiles
 tile_index_arr : Array of indices if the tile in tiles_dic to be assigned
 """
-function Run_Many_Tile(config,tile_index_arr,tiles_dic;tile_date="2019-09-16T00:00:00",
+function Run_Many_Tile(config,tile_index_arr,tiles_dic;group="",tile_date="2019-09-16T00:00:00",
     plate_scale=nothing,fp_dic=nothing,exc_dic=nothing,verbose=0,pre_msg="")
     
     #load plate_scale if needed
@@ -755,16 +767,17 @@ function Run_Many_Tile(config,tile_index_arr,tiles_dic;tile_date="2019-09-16T00:
     #load the data for first tile to use things multiple times
     #load data for the tile and focal plane
     tile_index=tile_index_arr[1]
-    targets_dic,fp_dic,exc_dic=Prepare_tile(config,tile_index,tiles_dic;tile_date=tile_date,
+    targets_dic,fp_dic,exc_dic=Prepare_tile(config,tile_index,tiles_dic;group=group,tile_date=tile_date,
         plate_scale=plate_scale,fp_dic=fp_dic,exc_dic=exc_dic,num_fba=config["NumFBARealization"])
     
     #Now iterate over rest of the tile
     for tile_index in tile_index_arr[1:end]
         #println(now(UTC)," Begin TILEID:",tiles_dic["TILEID"][tile_index])
-        ret_msg=Run_Single_Tile(config,tile_index,tiles_dic;tile_date=tile_date,
+        ret_msg=Run_Single_Tile(config,tile_index,tiles_dic;group=group,tile_date=tile_date,
         plate_scale=plate_scale,fp_dic=fp_dic,exc_dic=exc_dic,verbose=verbose)
         if(verbose>0)
-            println(now(UTC),pre_msg," TILEID:",ret_msg)
+            #println(now(UTC),pre_msg," TILEID:",ret_msg)
+            println(pre_msg," TILEID:",ret_msg)
         end
     end        
 end
