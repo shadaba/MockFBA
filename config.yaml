@@ -1,43 +1,98 @@
+
+#This RandomSeed is used for reproducible results
 RandomSeed: 1
+#Number of cpu we will have available to use
+#Not all the steps will use all the cpu for memory consideration
 ncpu: 8
+
+#The list of steps to run can have 
+#"pre-process": Takes the input target fits file and convert them to binary format
+#"assignment": Run the fibre-assignment algorithm and write output for each tile
+#"post-process": Combine all the tile info and write first zone level fits which then
+#further combined to create the fits file with assignment information, there will also include any columns specified on carry_columns
 steps: ["pre-process","assignment","post-process"]
+
+
+#Number of FBA realization we would want to run, We should use multiples of 32 
+#because 32 unsinged int is used to pack the final information
+NumFBARealization: 96
+
+#Information about focal plane setup
 focal_plane:
+  #pointing to the directory where DESI focalplane info is stored
+  #on NERSC this should be: /global/common/software/desi/cori/desiconda/20200801-1.4.0-spec/code/desimodel/master/data/focalplane/
   focalplane_dir: "/Users/shadab/Documents/Projects/MockFBA/focalplane/"
+  #A directory with write permission, focal plane info is converted to binary and written here
   focalplane_dir_jld2: "/Users/shadab/Documents/Projects/MockFBA/focalplane_jld2/"
+    #The date when the focal plane setup to use: Need to implement the dynamic date
   date: "2019-09-16T00:00:00"
+
+#Information about the tiles to use
 TILES:
+  #Path to the tile fits file
   tile_file: "/Users/shadab/Documents/Projects/MockFBA/footprint/Tiles_year1.fits"
-  #Based on mimum approx distance between tiles
+  #Based on mimum approx distance between tiles, must be more than tile radius but smaller than nearest tile
   tile_radius: 1.645
+  #which program to choose for the tiles can be DARK, BRIGHT  
   PROGRAM: "DARK"
+  #How many passes, pass start with 0 to Numpass-1
   NumPass: 7 
-sky: "SGC"
-OUTPUT:
-  OUT_dir: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/"
-  JLD2_dir: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/JLD2_data/"
-  FITS_dir: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/FITS_FBA/"
-  pre-process-tag: "pre"
-  ThetaPhi_pos: false
-  FBA-tag: "FBA_ph000"
-  post-process-tag: "post"
+
+#Infotmation about the targets
 target:
   QSO:
+    #FITS file containing the target positions
     FITSfile: "/Users/shadab/Documents/Projects/MockFBA/mocks/QSO/cutsky_QSO_z1.400_AbacusSummit_base_c000_ph000.fits"
-    JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/JLD2_data/QSO_ph000.jld2"
+    #JLDfile where targets will be re-organized and written, not necessarily needed
+    #JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/JLD2_data/QSO_ph000.jld2"
+    #How many observations we want for targets in this file 
     Num_obs: 1
+    #Different priorities to be assigned, objects with higher priority is assigned first  
     Priorities: [3400,3200,3000]
-    Priority_fraction: [0.8,0.1,0.1]
+    #How to split the objects in different priority, must addd to 1
+    Priority_fraction: [1.0,0.0,0.0]
+    #Any columns we want from the original fits file above in the final post-FBA fits file
+    #Make sure these columns are indeed available in the original fits file
+    carry_columns: ["RA","DEC","Z","Z_COSMO"]
   LRG:
+    #FITS file containing the target positions
     FITSfile: "/Users/shadab/Documents/Projects/MockFBA/mocks/LRG/cutsky_LRG_z0.800_AbacusSummit_base_c000_ph000.fits"
-    JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/JLD2_data/LRG_ph000.jld2"
+    #JLDfile where targets will be re-organized and written, not necessarily needed
+    #JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/JLD2_data/LRG_ph000.jld2"
+    #How many observations we want for targets in this file 
     Num_obs: 1
+    #Different priorities to be assigned, objects with higher priority is assigned first  
     Priorities: [3400,3200,3000]
-    Priority_fraction: [0.05,0.85,0.1]
+    #How to split the objects in different priority, must addd to 1
+    Priority_fraction: [0.0,1.0,0.0]
+    #Any columns we want from the original fits file above in the final post-FBA fits file
+    carry_columns: ["RA","DEC","Z","Z_COSMO"]
   ELG:
+    #FITS file containing the target positions
     FITSfile: "/Users/shadab/Documents/Projects/MockFBA/mocks/ELG/cutsky_ELG_z1.100_AbacusSummit_base_c000_ph000.fits"
-    JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/JLD2_data/ELG_ph000.jld2"
+    #JLDfile where targets will be re-organized and written, not necessarily needed
+    #JLDfile: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/JLD2_data/ELG_ph000.jld2"
+    #How many observations we want for targets in this file 
     Num_obs: 1
+    #Different priorities to be assigned, objects with higher priority is assigned first  
     Priorities: [3400,3200,3000]
+    #How to split the objects in different priority, must addd to 1
     Priority_fraction: [0.001,0.01,0.989]
-group: "SGC"
-NumFBARealization: 100
+    #Any columns we want from the original fits file above in the final post-FBA fits file
+    carry_columns: ["RA","DEC","Z","Z_COSMO"]
+
+#The output related options
+#All the directories should be with write permission
+OUTPUT:
+  #Main directory where all the output should be written
+  OUT_dir: "/Users/shadab/Documents/Projects/MockFBA/AbacusSummit_base_c000_ph000/"
+  #Whether the assigned theta-phi should be written, has an impact on io and memory
+  ThetaPhi_pos: false
+
+  #Some tags to use in-case various version for the same mocks are run  
+  pre-process-tag: "pre"
+  FBA-tag: "FBA"
+  post-process-tag: "post"
+  #These directories are not needed and will be created but if prefered can be provided
+  #JLD2_dir: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/JLD2_data/"
+  #FITS_dir: "/Users/shadab/Documents/Projects/MockFBA/mocks_v1/FITS_FBA/"

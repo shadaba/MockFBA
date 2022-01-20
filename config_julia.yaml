@@ -1,0 +1,76 @@
+NumFBARealization: 96
+OUTPUT:
+  FBA-tag: FBA
+  FITS_dir: /Users/shadab/Documents/Projects/MockFBA/AbacusSummit_base_c000_ph000/FITS_dir-pre/
+  JLD2_dir: /Users/shadab/Documents/Projects/MockFBA/AbacusSummit_base_c000_ph000/JLD2_dir-pre/
+  OUT_dir: /Users/shadab/Documents/Projects/MockFBA/AbacusSummit_base_c000_ph000/
+  ThetaPhi_pos: false
+  post-process-tag: post
+  pre-process-tag: pre
+RandomSeed: 1
+TILES:
+  NumPass: 7
+  PROGRAM: DARK
+  tile_file: /Users/shadab/Documents/Projects/MockFBA/footprint/Tiles_year1.fits
+  tile_radius: 1.645
+focal_plane:
+  date: '2019-09-16T00:00:00'
+  focalplane_dir: /Users/shadab/Documents/Projects/MockFBA/focalplane/
+  focalplane_dir_jld2: /Users/shadab/Documents/Projects/MockFBA/focalplane_jld2/
+ncpu: 8
+steps:
+- pre-process
+- assignment
+- post-process
+target:
+  ELG:
+    FITSfile: /Users/shadab/Documents/Projects/MockFBA/mocks/ELG/cutsky_ELG_z1.100_AbacusSummit_base_c000_ph000.fits
+    JLDfile: /Users/shadab/Documents/Projects/MockFBA/AbacusSummit_base_c000_ph000/JLD2_dir-pre/cutsky_ELG_z1.100_AbacusSummit_base_c000_ph000.jld2
+    Num_obs: 1
+    Priorities:
+    - 3400
+    - 3200
+    - 3000
+    Priority_fraction:
+    - 0.001
+    - 0.01
+    - 0.989
+    carry_columns:
+    - RA
+    - DEC
+    - Z
+    - Z_COSMO
+  LRG:
+    FITSfile: /Users/shadab/Documents/Projects/MockFBA/mocks/LRG/cutsky_LRG_z0.800_AbacusSummit_base_c000_ph000.fits
+    JLDfile: /Users/shadab/Documents/Projects/MockFBA/AbacusSummit_base_c000_ph000/JLD2_dir-pre/cutsky_LRG_z0.800_AbacusSummit_base_c000_ph000.jld2
+    Num_obs: 1
+    Priorities:
+    - 3400
+    - 3200
+    - 3000
+    Priority_fraction:
+    - 0.0
+    - 1.0
+    - 0.0
+    carry_columns:
+    - RA
+    - DEC
+    - Z
+    - Z_COSMO
+  QSO:
+    FITSfile: /Users/shadab/Documents/Projects/MockFBA/mocks/QSO/cutsky_QSO_z1.400_AbacusSummit_base_c000_ph000.fits
+    JLDfile: /Users/shadab/Documents/Projects/MockFBA/AbacusSummit_base_c000_ph000/JLD2_dir-pre/cutsky_QSO_z1.400_AbacusSummit_base_c000_ph000.jld2
+    Num_obs: 1
+    Priorities:
+    - 3400
+    - 3200
+    - 3000
+    Priority_fraction:
+    - 1.0
+    - 0.0
+    - 0.0
+    carry_columns:
+    - RA
+    - DEC
+    - Z
+    - Z_COSMO
