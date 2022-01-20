@@ -13,11 +13,54 @@ def utcnow():
     utc_time = datetime.utcnow()
     return utc_time.strftime('%Y-%m-%dT%H:%M:%S')
 
-def combin_fits(file_list,outfile):
-    '''combines the fits files assumin same columns in each one of them'''
+def combin_fits(file_list,outfile,original_fits=None,Original_columns=None,index_column="FITS_index_julia",index_one=True):
+    '''combines the fits files assumin same columns in each one of them
+    additional pulls the additional columns from original_fits and add them based on
+    index_col, assuming indexing from 1 you can set this to zero convetion by index_one=False
+    '''
 
-    with F.FITS(file_list[0]) as fin:
+    #for the original fits file
+    forg=None
+
+    with F.FITS(file_list[0],"r") as fin:
         data_type=fin[1][0].dtype
+
+    if(Original_columns is not None):
+        if(not os.path.isfile(original_fits)):
+            miss_col=""
+            for col in Original_columns:
+                if(col in data_type.names):
+                    continue
+                miss_col="%s %s,"%(miss_col,col)
+
+            tmsg="Warning: original fits not found: %s"%(original_fits)
+            tmsg=tmsg+"\n   Following original columns can't be added: %s"%(miss_col)
+            tmsg=tmsg+"\n   to file %s"%(outfile)
+            print(tmsg)
+            out_data_type=data_type
+        else:
+            forg=F.FITS(original_fits,"r")
+            org_dtype=forg[1][0].dtype
+
+            new_list=[]
+            for col in data_type.names:
+                new_list.append((col,data_type[col]))
+
+            for cc,col in enumerate(org_dtype.names):
+                if(col in data_type.names):
+                    continue
+                elif(col in Original_columns):
+                    #print(cc,col,org_dtype[col])
+                    new_list.append((col,org_dtype[col]))
+
+            #debug
+            #if(True):
+            #    new_list.append(("RA_org",">f4"))
+            #    new_list.append(("DEC_org",">f4"))
+
+            out_data_type=np.dtype(new_list)
+    else:
+        out_data_type=data_type
 
 
     if(os.path.isfile(outfile)):
@@ -26,16 +69,26 @@ def combin_fits(file_list,outfile):
 
     fout=F.FITS(outfile,'rw')
 
+
     for ff,fname in enumerate(file_list):
-        print('working on %d %s'%(ff,fname))
+        print('Combining %s'%(fname))
 
         with F.FITS(fname) as fin:
             nrow=fin[1][data_type.names[0]][:].size
 
-            dataout=np.zeros(nrow,dtype=data_type)
+            dataout=np.zeros(nrow,dtype=out_data_type)
 
-            for cc,col in enumerate(data_type.names):
-                dataout[col]=fin[1][col][:]
+            for cc,col in enumerate(out_data_type.names):
+                if col in data_type.names:
+                    dataout[col]=fin[1][col][:]
+                else:
+                    index=fin[1][index_column][:]
+                    #if(col in ["RA_org","DEC_org"]):
+                    #    dataout[col]=forg[1][col[:-4]][index-1]
+                    if(index_one):
+                        dataout[col]=forg[1][col][index-1]
+                    else:
+                        dataout[col]=forg[1][col][index]
 
         if(ff==0):
             fout.write(dataout)
@@ -46,9 +99,13 @@ def combin_fits(file_list,outfile):
 
     fout.close()
 
-    print('close fits: %s'%outfile)
+    if(forg is not None):
+        forg.close()
+
+    print('%s Written Combined fits: %s'%(utcnow(),outfile))
 
     return
+
 
 
 def run_julia_preprocess(config_file,tracer):
@@ -180,8 +237,11 @@ def combine_group_to_singlefits(config,group,tracer):
     #print(outfile_str)
     zone_fits=glob.glob(outfile_str)
     outfile="%s%s_%s.fits.gz"%(outdir,tracer,group)
-    combin_fits(zone_fits,outfile)
-    print("written: ",outfile)
+    #combin_fits(zone_fits,outfile,config)
+    combin_fits(zone_fits,outfile,original_fits=config["target"][tracer]["FITSfile"],
+            Original_columns=config["target"][tracer]["carry_columns"],
+            index_column="FITS_index_julia",index_one=True)
+    #print("written: ",outfile)
 
     return
 
@@ -192,20 +252,20 @@ def proces_FBA(config,config_file,ncpu,step="assignment"):
     #Runs the actual fiber-assignment steps per tile
     if(config["SplitSky"]>0):
         if(config["SplitSky"]==1 or config["SplitSky"]==3):
-            print("%s Begin %s for NGC"%(step,utcnow()))
+            print("%s Begin %s for NGC"%(utcnow(),step))
             if(step=="assignment"):
                 run_FBA_passes(config_file,"NGC",config["TILES"]["NumPass"],ncpu)
             else:
                 run_post_process(config,config_file,ncpu,"NGC")
 
         if(config["SplitSky"]==2 or config["SplitSky"]==3):
-            print("%s Begin %s for SGC"%(step,utcnow()))
+            print("%s Begin %s for SGC"%(utcnow(),step))
             if(step=="assignment"):
                 run_FBA_passes(config_file,"SGC",config["TILES"]["NumPass"],ncpu)
             else:
                 run_post_process(config,config_file,ncpu,"SGC")
     else:
-        print("%s Begin %s for NS-combined"%(step,utcnow()))
+        print("%s Begin %s for NS-combined"%(utcnow(),step))
         if(step=="assignment"):
             run_FBA_passes(config_file,"NS",config["TILES"]["NumPass"],ncpu)
         else:
