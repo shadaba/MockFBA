@@ -5,6 +5,13 @@ RandomSeed: 1
 #Not all the steps will use all the cpu for memory consideration
 ncpu: 8
 
+#Whether sky should be split in NGC/SGC for seperate processing
+#0 : no split, everything will be done together
+#1: split in NGC/SGC and only process NGC
+#2: split in NGC/SGC and only process SGC
+#3: split in NGC/SGC and process both NGC and SGC
+SplitSky: 3
+
 #The list of steps to run can have 
 #"pre-process": Takes the input target fits file and convert them to binary format
 #"assignment": Run the fibre-assignment algorithm and write output for each tile

@@ -15,6 +15,8 @@ function main(ARGS)
     #load the config file 
     config=YAML.load_file(ARGS[1])
     tracer=ARGS[2]
+    #1 to preprocess focalp plan
+    focal_plane=parse(Int32,ARGS[3])
 
     
     #get the needed info from config
@@ -30,6 +32,12 @@ function main(ARGS)
     #pre-process the tracer
     MockFBA.preprocess_tracer(fname,priority_list,priority_frac_list,outfile,
         tile_file,tile_radius_indeg,npass,program)
+
+    #pre-process the focal plane
+    if(focal_plane==1)
+        fp_dic,exc_dic=MockFBA.load_hw_full_FocalPlane!(config["focal_plane"];date=config["focal_plane"]["date"])
+    end
+
 
 end
 

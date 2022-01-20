@@ -41,7 +41,8 @@ function main(ARGS)
     #println("my_indices: $(beg_index) $(end_index) , total_tile: $(ntile)")
 
     this_index=collect(beg_index:end_index)
-    tile_date="2019-09-16T00:00:00"
+    #tile_date="2019-09-16T00:00:00"
+    tile_date=config["focal_plane"]["date"]
     MockFBA.Run_Many_Tile(config,this_index,tiles_dic;group=group,tile_date=tile_date, plate_scale=nothing,fp_dic=nothing,exc_dic=nothing,verbose=2)
 end
 

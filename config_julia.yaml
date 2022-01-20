@@ -8,6 +8,7 @@ OUTPUT:
   post-process-tag: post
   pre-process-tag: pre
 RandomSeed: 1
+SplitSky: 3
 TILES:
   NumPass: 7
   PROGRAM: DARK

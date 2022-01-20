@@ -108,8 +108,8 @@ def combin_fits(file_list,outfile,original_fits=None,Original_columns=None,index
 
 
 
-def run_julia_preprocess(config_file,tracer):
-    comm="julia MockFBA_PreProcess.jl %s %s"%(config_file,tracer)
+def run_julia_preprocess(config_file,tracer,focal_plane_preprocess):
+    comm="julia MockFBA_PreProcess.jl %s %s %d"%(config_file,tracer,focal_plane_preprocess)
     return os.system(comm)
 
 def wrapper_run_julia_preprcoess(args):
@@ -131,7 +131,14 @@ def run_pre_process(config,config_file,ncpu):
         if(os.path.isfile(config["target"][tracer]["JLDfile"])):
             print("File Exists, No preprocessing for %s\n using: %s"%(tracer,config["target"][tracer]["JLDfile"]))
             continue
-        part.append((config_file,list_tracer[ii]))
+
+        #This is to also preprocess the focal plane file should be done only once
+        if(ii==0):
+            focal_plane_process=1
+        else:
+            focal_plane_process=0
+
+        part.append((config_file,list_tracer[ii],focal_plane_process))
     results = pool.map(wrapper_run_julia_preprcoess,part)
     
     if(sum(results)!=0):
@@ -364,7 +371,6 @@ if __name__ == "__main__":
     #config_file="config_tmp.yaml"
     
     config,config_file=validate_config(config_file_in)
-    exit()
 
     ncpu=config["ncpu"]
 
