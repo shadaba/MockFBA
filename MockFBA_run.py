@@ -2,12 +2,12 @@
 #This manages and runs the inherent Julia package for the fibre-assignment on mocks
 
 import os
-from multiprocessing import Pool
 import yaml
-from datetime import datetime
 import glob 
 import fitsio as F
 import numpy as np
+from multiprocessing import Pool
+from datetime import datetime
 
 def utcnow():
     utc_time = datetime.utcnow()
@@ -275,12 +275,96 @@ def proces_FBA(config,config_file,ncpu,step="assignment"):
     return
 
 
+"""validates the config file and write an extended config file for julia
+"""
+def validate_config(config_file):
+    #load the yaml config file
+    with open(config_file, 'r') as file:
+        config=yaml.safe_load(file)
+
+    config_file_julia="%s_julia.yaml"%(config_file[:-5])
+    
+    config=check_config_file(config)
+
+    #write the updte config file for julia
+    with open(config_file_julia,"w") as fout:
+        yaml.dump(config, fout,sort_keys=True)
+
+    return config,config_file_julia
+
+def make_dir(dirin):
+    '''checks and creates a directory'''
+    if(not os.path.isdir(dirin)):
+        os.mkdir(dirin)
+        print('created: ',dirin)
+    else:
+        print('Already exists: ',dirin)
+        
+    return
+
+def check_config_file(config):
+    #create output directory
+    make_dir(config["OUTPUT"]["OUT_dir"])
+    for tdir in ["JLD2_dir","FITS_dir"]:
+        if(tdir in config["OUTPUT"].keys()):
+            this_dir=config["OUTPUT"][tdir]
+        else:
+            this_dir="%s%s-%s/"%(config["OUTPUT"]["OUT_dir"],tdir,config["OUTPUT"]["pre-process-tag"])
+            config["OUTPUT"][tdir]=this_dir
+        make_dir(this_dir)
+
+        #To generate the directory for writing tiles as output
+        if(tdir=="JLD2_dir"):
+            tile_dir="%s%s"%( config["OUTPUT"][tdir],config["OUTPUT"]["FBA-tag"])
+            make_dir(tile_dir)
+        elif(tdir=="FITS_dir"):#Directory to write the fits file
+            fits_dir="%s%s"%(config["OUTPUT"][tdir],config["OUTPUT"]["FBA-tag"])
+            make_dir(fits_dir)
+            #A temp directory to write zone fits file
+            make_dir(fits_dir+"/tmp")
+
+
+    #check for the focal_plane directory
+    make_dir(config["focal_plane"]["focalplane_dir_jld2"])
+
+    #check if focalplane directory exists
+    if(not os.path.isdir(config["focal_plane"]["focalplane_dir"])):
+        print("Warning the foalplane firctory not found: %s"%(config["focal_plane"]["focalplane_dir"]))
+
+    #check if tile file exists
+    if(not os.path.isfile(config["TILES"]["tile_file"])):
+        print("Error: Tile file not found: %s"%(config["TILES"]["tile_file"]))
+        raise
+    else: #make sure the tile id is greate than zero
+        ftile=config["TILES"]["tile_file"]
+        if(np.min(F.FITS(ftile,"r")[1]["TILEID"][:])<1):
+            print("Error: The TILEID in %s is less than 1, TILEID must be >=1"%(ftile))
+            raise 
+
+    #Now check if all the target files exists and add JLD file columns
+    for tracer in list(config["target"].keys()):
+        fitsfile=config["target"][tracer]["FITSfile"]
+        if(not os.path.isfile(fitsfile)):
+            print("Erorr: The %s FitsFile %s not found"%(tracer,fitsfile))
+            raise
+        elif("JLDfile" not in config["target"][tracer].keys()):
+            fname=fitsfile.split("/")[-1]
+            jldfile="%s%s.jld2"%(config["OUTPUT"]["JLD2_dir"],fname[:-5])
+            config["target"][tracer]["JLDfile"]=jldfile
+
+    return config
+
+
+
 if __name__ == "__main__":
     #from multiprocessing import Pool
     #config_file="config.yaml"
-    config_file="config_tmp.yaml"
-    with open(config_file, 'r') as file:
-        config=yaml.safe_load(file)
+    config_file_in="config.yaml"
+
+    #config_file="config_tmp.yaml"
+    
+    config,config_file=validate_config(config_file_in)
+    exit()
 
     ncpu=config["ncpu"]
 
