@@ -19,14 +19,25 @@
   * Parsing the evolving focal plane status
 
 
-# Installation
+# Installation (USER)
+  * Make sure you have Julia 1.7 installed: https://julialang.org/downloads/platform/
+  * start julia by typing julia
+  * use following command to install (This installs all julia depndencies)
+      `using Pkg`
+      `Pkg.add(url="https://github.com/shadaba/MockFBA.git")
+  * once installed you need to setup the path to the installed library to do so type following
+      `julia -e "import MockFBA; println(pathof(MockFBA))"`
+  * This will diplay the path to main src, define a shell variable to this path by adding following to bash
+       export MOCKFBA_PATH="path to MockFBA julia package"
+
+
+# Installation (Developer)
   * Make sure you have Julia 1.7 installed: https://julialang.org/downloads/platform/
   * clone this repo
   * From the repo directory start julia
   * go to pkg mode by typing ]
   * Activate the project by : activate .
-  * Install dependencies by typing : Instantiate
-  * Now it is ready to use
+  * set MOCKFBA_PATH to the directory cloned  
 
 # Python dependencies (following python libraries are needed):
   * yaml
@@ -38,11 +49,15 @@
 
 
 # How to use:
-  Once the config file is setup simply type
-  python MockFBA_run.py <config_file_name>
+  Once the config file is setup simply type (see the config.yaml in this repo for example)
+  python $MOCKFBA_PATH/MockFBA_run.py <config_file_name>
+  
 
 # How to setup config file:
   An example config file is given in config.yaml with detailed comments
   Please go through it and make sure you provide all the appropriate paths and file names
+  The master version of this config file can be found on this link:
+  https://github.com/shadaba/MockFBA/blob/main/config.yaml
+
 
 

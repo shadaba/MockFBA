@@ -6,8 +6,27 @@ import yaml
 import glob 
 import fitsio as F
 import numpy as np
+import warnings
 from multiprocessing import Pool
 from datetime import datetime
+
+
+def julia_executable(step="pre-process"):
+    if("MOCKFBA_PATH" in os.environ.keys()):
+        julia_root=os.environ["MOCKFBA_PATH"]
+    else:
+        julia_root=""
+        warnings.warn("MOCKFBA_PATH is not set")
+
+
+    if(step=="pre-process"):
+        jl_exe="MockFBA_PreProcess.jl"
+    elif(step=="post-process"):
+        jl_exe="MockFBA_PostProcess.jl"
+    elif(step=="FBA"):
+        jl_exe="MockFBA_Assign.jl"
+
+    return julia_root+jl_exe
 
 def utcnow():
     utc_time = datetime.utcnow()
@@ -109,7 +128,7 @@ def combin_fits(file_list,outfile,original_fits=None,Original_columns=None,index
 
 
 def run_julia_preprocess(config_file,tracer,focal_plane_preprocess):
-    comm="julia MockFBA_PreProcess.jl %s %s %d"%(config_file,tracer,focal_plane_preprocess)
+    comm="julia %s %s %s %d"%(julia_executable(step="pre-process"),config_file,tracer,focal_plane_preprocess)
     return os.system(comm)
 
 def wrapper_run_julia_preprcoess(args):
@@ -153,7 +172,7 @@ def run_pre_process(config,config_file,ncpu):
 To run the Julia code for fiber-assignment
 """
 def run_julia_assign(config_file,group,tile_pass,ncpu,this_cpu):
-    comm="julia --threads 1 MockFBA_Assign.jl %s %s %d %d %d"%(config_file,group,tile_pass,ncpu,this_cpu)
+    comm="julia --threads 1 %s %s %s %d %d %d"%(julia_executable(step="FBA"),config_file,group,tile_pass,ncpu,this_cpu)
     print(comm)
     return os.system(comm)
     
@@ -227,7 +246,7 @@ def run_post_process(config,config_file,ncpu,group):
     return
 
 def run_julia_postprcoess(config_file,tracer,group,npart,mypart):
-    comm="julia MockFBA_PostProcess.jl %s %s %s %d %d"%(config_file,tracer,group,npart,mypart)
+    comm="julia %s %s %s %s %d %d"%(julia_executable(step="post-process"),config_file,tracer,group,npart,mypart)
     return os.system(comm)
     
 def wrapper_run_julia_postprcoess(args):
