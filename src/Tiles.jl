@@ -772,6 +772,14 @@ function Run_Many_Tile(config,tile_index_arr,tiles_dic;group="",tile_date="2019-
     
     #Now iterate over rest of the tile
     for tile_index in tile_index_arr[1:end]
+        #output file name for this tile
+        fba_jldfile=TileFBA_FileName(config,tiles_dic["TILEID"][tile_index])
+	#check if this file exists then continue
+	if(isfile(fba_jldfile))
+	   println(pre_msg," TILEID:",tiles_dic["TILEID"][tile_index], " exists")
+	   continue
+	end
+
         #println(now(UTC)," Begin TILEID:",tiles_dic["TILEID"][tile_index])
         ret_msg=Run_Single_Tile(config,tile_index,tiles_dic;group=group,tile_date=tile_date,
         plate_scale=plate_scale,fp_dic=fp_dic,exc_dic=exc_dic,verbose=verbose)

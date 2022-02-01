@@ -96,7 +96,7 @@ function PostFBA_JLD2FITS(config,tracer,group,mypart_zone,npart_zone,;
     #generate and tileif 2d passs maps
     tiles_pass=map_TILEID2PASS(config,group)
     
-    @show izone_min,izone_max, max_nobj
+    #@show izone_min,izone_max, max_nobj
     
     for iz in izone_min:izone_max
         fill!(tracer_targets["FBA_PASS_R1"],-1)
@@ -243,7 +243,7 @@ function fill_FBA_results!(config,tiles_pass,tracer,tile_list,tracer_targets,nob
 	msg_warn="$(tracer): $(nmore) objects have more than $(config["target"][tracer]["Num_obs"]) assignment for realization 1"
 	println("PostP Warning: $(msg_warn)")
     end
-    println("counts (min,max):",minimum(tracer_targets["Count_R1"]),' ',maximum(tracer_targets["Count_R1"]))
+    #println("counts (min,max):",minimum(tracer_targets["Count_R1"]),' ',maximum(tracer_targets["Count_R1"]))
 end
 
 """Converts and array of boolean to UInt64 representation
