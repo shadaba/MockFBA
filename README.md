@@ -22,13 +22,15 @@
 # Installation (USER)
   * Make sure you have Julia 1.7 installed: https://julialang.org/downloads/platform/
   * start julia by typing julia
-  * use following command to install (This installs all julia depndencies)
+  * use following command to install (This installs all julia depndencies)\\
       `using Pkg`
-      `Pkg.add(url="https://github.com/shadaba/MockFBA.git")
+      `Pkg.add(url="https://github.com/shadaba/MockFBA.git")`
   * once installed you need to setup the path to the installed library to do so type following
       `julia -e "import MockFBA; println(pathof(MockFBA))"`
+  * The path to source will be like: "path-to-dir/src/MockFBA.jl"
   * This will diplay the path to main src, define a shell variable to this path by adding following to bash
-       export MOCKFBA_PATH="path to MockFBA julia package"
+       export MOCKFBA_PATH="path-to-dir"
+  * Note: If you want to update then simply re-run the Pkg.add step, but this may update the path as julia keeps older versions as it is. So to use the lates version after updating repeat the steps to update MOCKFBA_PATH variable otherwise it will continue to use old version of the installation.
 
 
 # Installation (Developer)
