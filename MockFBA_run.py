@@ -7,17 +7,18 @@ import glob
 import fitsio as F
 import numpy as np
 import warnings
+import subprocess
 from multiprocessing import Pool
 from datetime import datetime
 
 
-def julia_executable(step="pre-process"):
+def julia_executable(step="pre-process",verbose=False):
     if("MOCKFBA_PATH" in os.environ.keys()):
         julia_root=os.environ["MOCKFBA_PATH"]
     else:
         julia_root=""
-        warnings.warn("MOCKFBA_PATH is not set")
-
+        if(verbose):
+            warnings.warn("MOCKFBA_PATH is not set")
 
     if(step=="pre-process"):
         jl_exe="MockFBA_PreProcess.jl"
@@ -128,8 +129,10 @@ def combin_fits(file_list,outfile,original_fits=None,Original_columns=None,index
 
 
 def run_julia_preprocess(config_file,tracer,focal_plane_preprocess):
-    comm="julia %s %s %s %d"%(julia_executable(step="pre-process"),config_file,tracer,focal_plane_preprocess)
-    return os.system(comm)
+    #comm="julia %s %s %s %d"%(julia_executable(step="pre-process"),config_file,tracer,focal_plane_preprocess)
+    #return os.system(comm)
+    comm=["julia",julia_executable(step="pre-process"),config_file,tracer,'%d'%focal_plane_preprocess]
+    return subprocess.run(comm)
 
 def wrapper_run_julia_preprcoess(args):
    return run_julia_preprocess(*args)
@@ -159,10 +162,11 @@ def run_pre_process(config,config_file,ncpu):
 
         part.append((config_file,list_tracer[ii],focal_plane_process))
     results = pool.map(wrapper_run_julia_preprcoess,part)
-    
-    if(sum(results)!=0):
-        print("PreProcess step failed with error")
-        exit(1)
+   
+    for res in results:
+        if(res.returncode!=0):
+            print("PreProcess step failed with error: ",res)
+            exit(1)
 
     print("%s End PreProcess"%(utcnow()))
     return 
@@ -172,10 +176,12 @@ def run_pre_process(config,config_file,ncpu):
 To run the Julia code for fiber-assignment
 """
 def run_julia_assign(config_file,group,tile_pass,ncpu,this_cpu):
-    comm="julia --threads 1 %s %s %s %d %d %d"%(julia_executable(step="FBA"),config_file,group,tile_pass,ncpu,this_cpu)
-    print(comm)
-    return os.system(comm)
-    
+    #comm="julia --threads 1 %s %s %s %d %d %d"%(julia_executable(step="FBA"),config_file,group,tile_pass,ncpu,this_cpu)
+    #print(comm)
+    #return os.system(comm)
+    comm=["julia",julia_executable(step="FBA"),config_file,group,'%s'%tile_pass,'%d'%ncpu,'%d'%this_cpu]
+    return subprocess.run(comm)
+
 def wrapper_run_julia_assign(args):
    return run_julia_assign(*args)
 
@@ -185,18 +191,19 @@ def wrapper_run_julia_assign(args):
 def run_FBA_passes(config_file,group,npass,ncpu):
 
     for tile_pass in range(0,npass):
-        print("Begin pass=%d"%(tile_pass))
+        print("%s Begin pass=%d"%(utcnow(),tile_pass))
         pool = Pool(ncpu)
         part=[]
         for ii in range(0,ncpu):
             part.append((config_file,group,tile_pass,ncpu,ii))
         results = pool.map(wrapper_run_julia_assign,part)
     
-        if(sum(results)!=0):
-            print("EXITING: FBA assignment failed for pass=%d"%(tile_pass))
-            exit(1)
+        for res in results:
+            if(res.returncode!=0):
+                print("EXITING: FBA assignment failed for pass=%d"%(tile_pass),res)
+                exit(1)
 
-        print("End pass=%d"%(tile_pass))
+        print("%s End pass=%d"%(utcnow(),tile_pass))
 
     return
 
@@ -229,11 +236,12 @@ def run_post_process(config,config_file,ncpu,group):
 
     results = pool.map(wrapper_run_julia_postprcoess,part)
 
-    if(sum(results)!=0):
-        print("PostProcess step failed with error")
-        exit(1)
+    for res in results:
+        if(res.returncode!=0):
+            print("PostProcess step failed with error: ",res)
+            exit(1)
 
-    #finally combine them to one gits file
+    #finally combine them to one fits file
     pool = Pool(ntracer)
     part=[]
     for ii in range(0,ntracer):
@@ -246,9 +254,11 @@ def run_post_process(config,config_file,ncpu,group):
     return
 
 def run_julia_postprcoess(config_file,tracer,group,npart,mypart):
-    comm="julia %s %s %s %s %d %d"%(julia_executable(step="post-process"),config_file,tracer,group,npart,mypart)
-    return os.system(comm)
-    
+    #comm="julia %s %s %s %s %d %d"%(julia_executable(step="post-process"),config_file,tracer,group,npart,mypart)
+    #return os.system(comm)
+    comm=["julia",julia_executable(step="post-process"),config_file,tracer,group,'%d'%npart,'%d'%mypart]
+    return subprocess.run(comm)
+
 def wrapper_run_julia_postprcoess(args):
     return run_julia_postprcoess(*args)
 
@@ -304,6 +314,19 @@ def proces_FBA(config,config_file,ncpu,step="assignment"):
 """validates the config file and write an extended config file for julia
 """
 def validate_config(config_file):
+    #check if MOCKFBA_PATH is setup
+    for ss,step in enumerate(["pre-process","post-process","FBA"]):
+        if(ss==0):
+            verbose=True
+        else:
+            verbose=False
+        
+        julia_jl=julia_executable(step="pre-process",verbose=verbose)
+        if( not os.path.isfile(julia_jl)):
+            err_msg="Cannot find julia executeable on following path:\n  %s\n"%(julia_jl)
+            err_msg=err_msg+"Either MOCKFBA_PATH is not set properly or developer not in the MockFBA directory\n"
+            raise ValueError(err_msg)
+
     #load the yaml config file
     with open(config_file, 'r') as file:
         config=yaml.safe_load(file)

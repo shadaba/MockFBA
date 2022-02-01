@@ -25,7 +25,7 @@
   * use following command to install (This installs all julia depndencies)\\
       `using Pkg`
       `Pkg.add(url="https://github.com/shadaba/MockFBA.git")`
-  * once installed you need to setup the path to the installed library to do so type following
+  * once installed you need to setup the path to the installed library to do so type following\\
       `julia -e "import MockFBA; println(pathof(MockFBA))"`
   * The path to source will be like: "path-to-dir/src/MockFBA.jl"
   * This will diplay the path to main src, define a shell variable to this path by adding following to bash
@@ -41,7 +41,7 @@
   * Activate the project by : activate .
   * set MOCKFBA_PATH to the directory cloned  
 
-# Python dependencies (following python libraries are needed):
+# Python dependencies:
   * yaml
   * numpy
   * datetime
