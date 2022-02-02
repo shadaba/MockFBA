@@ -3,7 +3,7 @@
 RandomSeed: 1
 #Number of cpu we will have available to use
 #Not all the steps will use all the cpu for memory consideration
-ncpu: 8
+#ncpu: 8: deprecated now provided from command line
 
 #Whether sky should be split in NGC/SGC for seperate processing
 #0 : no split, everything will be done together
@@ -17,7 +17,8 @@ SplitSky: 3
 #"assignment": Run the fibre-assignment algorithm and write output for each tile
 #"post-process": Combine all the tile info and write first zone level fits which then
 #further combined to create the fits file with assignment information, there will also include any columns specified on carry_columns
-steps: ["pre-process","assignment","post-process"]
+#steps: ["pre-process","assignment","post-process"]
+#This option is deprecated and now provided from command line
 
 
 #Number of FBA realization we would want to run, We should use multiples of 32 
@@ -92,7 +93,7 @@ target:
 #All the directories should be with write permission
 OUTPUT:
   #Main directory where all the output should be written
-  OUT_dir: "/Users/shadab/Documents/Projects/MockFBA/AbacusSummit_base_c000_ph000/"
+  OUT_dir: "/Users/shadab/Documents/Projects/MockFBA/AbacusSummit_base_c000_ph001/"
   #Whether the assigned theta-phi should be written, has an impact on io and memory
   ThetaPhi_pos: false
 

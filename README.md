@@ -52,7 +52,9 @@
 
 # How to use:
   Once the config file is setup simply type (see the config.yaml in this repo for example)\\
-   `python $MOCKFBA_PATH/MockFBA_run.py <config_file_name>`
+   `python $MOCKFBA_PATH/MockFBA_run.py -config_file <config_file_name> -ncpu <number of cpu>`\\
+  You can also list all the options by typing \\
+   `python $MOCKFBA_PATH/MockFBA_run.py --h`
   
 
 # How to setup config file:

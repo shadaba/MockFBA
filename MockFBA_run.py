@@ -11,6 +11,24 @@ import subprocess
 from multiprocessing import Pool
 from datetime import datetime
 
+import argparse
+
+
+if __name__=="__main__":
+    parser = argparse.ArgumentParser(description='MockFBA: Runs the fibreassignment in mocks',
+            formatter_class=argparse.RawTextHelpFormatter)
+    #these should be input
+    parser.add_argument('-config_file',default=None,help='Input can be provided using a config file.')
+    parser.add_argument('-steps' ,nargs='+',type=str,default=["pre-process","assignment","post-process"], 
+                   help='''The process have three steps and all of them can be run in one go or multiple call
+You can provide a list of values from below 
+   pre-process: This is the step when the fits file is converted to the efficient JLD2 format
+   assignment: runs the actual assignment for all the tiles
+   post-process: post-process all the tiles and generates easy to use fits file''')
+    parser.add_argument('-ncpu',type=int, default=4,help='Number of cpu can be used to parallelize the process')
+
+    args = parser.parse_args()
+
 
 def julia_executable(step="pre-process",verbose=False):
     if("MOCKFBA_PATH" in os.environ.keys()):
@@ -407,25 +425,24 @@ def check_config_file(config):
 
 if __name__ == "__main__":
     #from multiprocessing import Pool
-    #config_file="config.yaml"
-    config_file_in="config.yaml"
+    config_file_in=args.config_file
 
     #config_file="config_tmp.yaml"
     
     config,config_file=validate_config(config_file_in)
 
-    ncpu=config["ncpu"]
+    ncpu=args.ncpu
 
-    if("pre-process" in config["steps"]):
+    if("pre-process" in args.steps):
         #Runs the actual fiber-assignment steps per tile
         run_pre_process(config,config_file,ncpu)
     
 
-    if("assignment" in config["steps"]):
+    if("assignment" in args.steps):
         proces_FBA(config,config_file,ncpu,step="assignment")
 
 
-    if("post-process" in config["steps"]):
+    if("post-process" in args.steps):
         #post-process the assignment, this converts the tiles files to zone_fits files
         proces_FBA(config,config_file,ncpu,step="post-process")
 
