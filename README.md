@@ -51,8 +51,8 @@
 
 
 # How to use:
-  Once the config file is setup simply type (see the config.yaml in this repo for example)
-  python $MOCKFBA_PATH/MockFBA_run.py <config_file_name>
+  Once the config file is setup simply type (see the config.yaml in this repo for example)\\
+   `python $MOCKFBA_PATH/MockFBA_run.py <config_file_name>`
   
 
 # How to setup config file:
