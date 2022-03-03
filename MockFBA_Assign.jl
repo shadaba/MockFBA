@@ -4,7 +4,7 @@ exec julia --color=yes --startup-file=no "${BASH_SOURCE[0]}" "$@"
 =#
 
 using Pkg
-Pkg.activate(".")
+#Pkg.activate(".")
 #include("srg/MockFBA.jl")
 import MockFBA
 
