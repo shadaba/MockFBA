@@ -101,9 +101,26 @@ def combin_fits(file_list,outfile,original_fits=None,Original_columns=None,index
         out_data_type=data_type
 
 
+    #Now combine the FBA_BITS in one variable
+    if(True):
+        new_list=[]
+        nFBA_BITS=0
+        for col in data_type.names:
+            if('FBA_BITS'== col[:8]):
+                nFBA_BITS=nFBA_BITS+1
+            else:
+                new_list.append((col,data_type[col]))
+
+        new_list.append(('FBA_BITS',data_type['FBA_BITS1'],(nFBA_BITS,)))
+        out_data_type=np.dtype(new_list)
+
+
+
+
     if(os.path.isfile(outfile)):
         print('File exists quiting: ',outfile)
         return
+
 
     fout=F.FITS(outfile,'rw')
 
@@ -117,7 +134,15 @@ def combin_fits(file_list,outfile,original_fits=None,Original_columns=None,index
             dataout=np.zeros(nrow,dtype=out_data_type)
 
             for cc,col in enumerate(out_data_type.names):
-                if col in data_type.names:
+                if('FBA_BITS'== col):
+                    if(nFBA_BITS==1):
+                        dataout['FBA_BITS']=fin[1]['FBA_BITS%d'%(ifba+1)][:]
+                    else:
+                        #transfering 1d arrays to 2d arrays for FBA_BITS
+                        for ifba in range(0,nFBA_BITS):
+                            dataout['FBA_BITS'][:,ifba]=fin[1]['FBA_BITS%d'%(ifba+1)][:]
+
+                elif col in data_type.names:
                     dataout[col]=fin[1][col][:]
                 else:
                     index=fin[1][index_column][:]
