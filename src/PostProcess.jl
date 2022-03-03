@@ -101,6 +101,9 @@ function PostFBA_JLD2FITS(config,tracer,group,mypart_zone,npart_zone,;
     for iz in izone_min:izone_max
         fill!(tracer_targets["FBA_PASS_R1"],-1)
         fill!(tracer_targets["FBA_LOCATION_R1"],-1)
+        for ii in 1:nbitweight
+            fill!(tracer_targets["FBA_BITS$(ii)"],0)
+        end
         
         #check the number of tiles in the zone 
         #if it is one with tileid=0 mean none of the tiles in zone and hence skip
@@ -149,9 +152,11 @@ function PostFBA_JLD2FITS(config,tracer,group,mypart_zone,npart_zone,;
         array_write=[]
         tmp_dic=Dict{String,Array}()
         for col in keys(tracer_targets)
+            #commented for debugging
             if(col in ["index_group","Count_R1"]) #columns to skip
                 continue
             end
+
             #append!(col_write,[col])
             #append!(array_write,view(tracer_targets[col],1:nobj_zone))
             #println(col,nobj_zone,size(tracer_targets[col]))
@@ -240,8 +245,8 @@ function fill_FBA_results!(config,tiles_pass,tracer,tile_list,tracer_targets,nob
     #Sanity checks
     if(maximum(tracer_targets["Count_R1"]) > config["target"][tracer]["Num_obs"])
         nmore=size(findall(tracer_targets["Count_R1"] .> config["target"][tracer]["Num_obs"]),1)
-	msg_warn="$(tracer): $(nmore) objects have more than $(config["target"][tracer]["Num_obs"]) assignment for realization 1"
-	println("PostP Warning: $(msg_warn)")
+        msg_warn="$(tracer): $(nmore) objects have more than $(config["target"][tracer]["Num_obs"]) assignment for realization 1"
+        println("PostP Warning: $(msg_warn)")
     end
     #println("counts (min,max):",minimum(tracer_targets["Count_R1"]),' ',maximum(tracer_targets["Count_R1"]))
 end

@@ -33,6 +33,9 @@ function main(ARGS)
     if(ntile==0)
         println("No tile to assign in pass=$(tile_pass)\n")
         return
+    elseif(mypart>=ntile)
+	println("Nothing to be done, have only ntile=$(ntile), but this cpu=$(mypart)")
+	return
     end
     
     #The indices of tiles I will execute

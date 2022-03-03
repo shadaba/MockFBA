@@ -685,7 +685,7 @@ function Load_tracers_intile(config,tracer,tile_id,tile_pass,group,columns;numob
         #It is important to make sure the reference groups are used consistently for indices to work
         indsel_this=findall(this_id_arr .== tile_id)
 
-        append!(tracer_tile["index"], indsel_this.+ jld_order["beg_index"][iz] )
+	append!(tracer_tile["index"], indsel_this.+ (jld_order["beg_index"][iz]-1) )
 
         for col in columns
             tcol_val=keepat!(load(jldfile,"$(tg)$(col)"),indsel_this)
