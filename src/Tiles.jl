@@ -231,7 +231,10 @@ function Prepare_tile(config,tile_index,tiles_dic;group="",tile_date="2019-09-16
     grid_scale=get_grid_scale(fp_dic)
 
     #get the focal plane bound
-    targets_dic["fp_bound"]=get_bound_focal_plane(targets_dic["X_FP"], targets_dic["Y_FP"],grid_scale;pad=1.0)
+    #the grid covers the targets and all POS/ETC devices
+    idev=[pp for pp in eachindex(fp_dic["OFFSET_X"]) if fp_dic["DEVICE_TYPE"][pp] in ("POS","ETC")]
+    targets_dic["fp_bound"]=get_bound_focal_plane([targets_dic["X_FP"];fp_dic["OFFSET_X"][idev]],
+        [targets_dic["Y_FP"];fp_dic["OFFSET_Y"][idev]],grid_scale;pad=1.0)
 
     #Assign zones
     targets_dic["zone_x"],targets_dic["zone_y"]=Assign_xy_zone(targets_dic["X_FP"], targets_dic["Y_FP"],targets_dic["fp_bound"])
