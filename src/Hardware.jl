@@ -280,6 +280,17 @@ function load_hw_focalplane_file(config;date="2019-09-16T00:00:00")
             fp_base=read_columns_jld2(fp_jld2,base_cols)
         end
     end
+
+    # Make every column a plain Array. DEVICE_TYPE is read back as a PooledVector of
+    # InlineStrings, which is not an Array, so sort_ZoneXp_Apply! skipped it and it
+    # stayed in file order while the other columns were sorted.
+    fp_base["DEVICE_TYPE"]=String.(collect(fp_base["DEVICE_TYPE"]))
+    for col in base_cols
+        if(!(fp_base[col] isa Array))
+            fp_base[col]=collect(fp_base[col])
+        end
+        @assert fp_base[col] isa Array "focal-plane column $(col) is $(typeof(fp_base[col])), must be an Array to be sorted"
+    end
     return fp_base
 end
 

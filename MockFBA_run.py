@@ -105,11 +105,13 @@ def combin_fits(file_list,outfile,original_fits=None,Original_columns=None,index
     if(True):
         new_list=[]
         nFBA_BITS=0
-        for col in data_type.names:
+        # loop over out_data_type (zone columns + carry_columns), not data_type,
+        # otherwise the carry_columns added above are dropped from the output
+        for col in out_data_type.names:
             if('FBA_BITS'== col[:8]):
                 nFBA_BITS=nFBA_BITS+1
             else:
-                new_list.append((col,data_type[col]))
+                new_list.append((col,out_data_type[col]))
 
         if(nFBA_BITS==1):
             new_list.append(('FBA_BITS',data_type['FBA_BITS1']))

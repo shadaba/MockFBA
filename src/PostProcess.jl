@@ -307,8 +307,10 @@ function PackBITS!(nbitweight,nbit_pack,bool_in,tracer_targets,ind_zone)
     for ii in 1:nbitweight
         imin=((ii-1)*nbit_pack)+1
         imax=imin+nbit_pack-1
-        tracer_targets["FBA_BITS$(ii)"][ind_zone]=Bool2UInt(bool_in[imin:imax],
-            tracer_targets["FBA_BITS$(ii)"][ind_zone])
+        # OR with the existing bits: an object covered by several tiles is visited once per
+        # tile, so assigning with "=" would keep only the last tile's realisations.
+        old_bits=tracer_targets["FBA_BITS$(ii)"][ind_zone]
+        tracer_targets["FBA_BITS$(ii)"][ind_zone]=old_bits | Bool2UInt(bool_in[imin:imax],old_bits)
         #println(ii,' ',bool_in[imin:imax])
         #println(bitstring(pack_out[ii]))
     end
