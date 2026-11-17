@@ -25,13 +25,18 @@ struct POSRobotBody
     body_on_target::Array{Float64, 2} #Stores the body polygon on target
     head_on_target::Array{Float64, 2} #Stores the head polygon on target
     axis_on_target::Array{Float64,1} #This goes throgh the same transformation as head to keep tract of its axis
+    body_circ_orig::Array{Float64,1}
+    head_circ_orig::Array{Float64,1}
+    body_circ_on::Array{Float64,1}
+    head_circ_on::Array{Float64,1}
     
 
     function  POSRobotBody(maximum_seg::Integer)
         new(maximum_seg,zeros(2),zeros(2),zeros(2),zeros(2),
             zeros(Bool,2),zeros(2),zeros(maximum_seg,2),zeros(2),
             zeros(maximum_seg,2),zeros(2),zeros(3),zeros(3),
-            zeros(maximum_seg,2),zeros(maximum_seg,2),zeros(2))
+            zeros(maximum_seg,2),zeros(maximum_seg,2),zeros(2),
+            zeros(3),zeros(3),zeros(2),zeros(2))
     end
 end   
 
@@ -46,18 +51,26 @@ function load_positioner!(pos::POSRobotBody,index,fp_dic,exc_dic)
     excl_body_name="$(excl_name)-theta-segments"
     excl_head_name="$(excl_name)-phi-segments"
     
-    #Assign number of segments
-    pos.nseg[1]=size(exc_dic[excl_body_name],1)
-    pos.nseg[2]=size(exc_dic[excl_head_name],1)
-    
-    #Assign polygon for body
-    Assign_polygon_with_maxmin_vertex!(pos.max_seg,pos.nseg[1],
-        exc_dic[excl_body_name],pos.body_orig,pos.body_minmax)
-    
-    #Assign polygon for head
-    Assign_polygon_with_maxmin_vertex!(pos.max_seg,pos.nseg[2],
-        exc_dic[excl_head_name],pos.head_orig,pos.head_minmax)
-    
+    for (ip,kname,porig,pminmax,pcirc) in ((1,excl_body_name,pos.body_orig,pos.body_minmax,pos.body_circ_orig),
+                                         (2,excl_head_name,pos.head_orig,pos.head_minmax,pos.head_circ_orig))
+        kcirc=replace(kname,"-segments"=>"-circles")
+        if(haskey(exc_dic,kcirc))
+            pcirc[1]=exc_dic[kcirc][1]; pcirc[2]=exc_dic[kcirc][2]; pcirc[3]=exc_dic[kcirc][3]
+        else
+            fill!(pcirc,0.0)
+        end
+        if(haskey(exc_dic,kname))
+            pos.nseg[ip]=size(exc_dic[kname],1)
+            Assign_polygon_with_maxmin_vertex!(pos.max_seg,pos.nseg[ip],exc_dic[kname],porig,pminmax)
+        else
+            pos.nseg[ip]=0
+            fill!(porig,0.0)
+            #extent of the circle about its own centre (used as polygon radii elsewhere)
+            pminmax[1]=0.0; pminmax[2]=pcirc[3]
+        end
+        @assert (pos.nseg[ip]>0) || (pcirc[3]>0) "exclusion $(kname) has neither a polygon nor a circle"
+    end
+
     #get the angular limit of the robots body
     pos.body_theta_limit[1]=deg2rad(fp_dic["MIN_T"][index])
     pos.body_theta_limit[2]=deg2rad(fp_dic["MAX_T"][index])
@@ -219,8 +232,19 @@ function move_positioner_to_theta_phi!(pos::POSRobotBody,theta,phi;
   
     #// Translate the whole positioner to the center.
     poly_translate!(view(pos.head_on_target,1:nP,:),view(pos.head_on_target,1:nP,:),pos.xy[1],pos.xy[2])
-    poly_translate!(view(pos.body_on_target,1:nT,:),view(pos.body_on_target,1:nT,:),pos.xy[1],pos.xy[2]) 
-    
+    poly_translate!(view(pos.body_on_target,1:nT,:),view(pos.body_on_target,1:nT,:),pos.xy[1],pos.xy[2])
+    #move the arm circles with the same rigid motion
+    ct=cos(theta); st=sin(theta)
+    if(pos.body_circ_orig[3]>0)
+        pos.body_circ_on[1]=pos.xy[1]+ct*pos.body_circ_orig[1]-st*pos.body_circ_orig[2]
+        pos.body_circ_on[2]=pos.xy[2]+st*pos.body_circ_orig[1]+ct*pos.body_circ_orig[2]
+    end
+    if(pos.head_circ_orig[3]>0)
+        ctp=cos(theta+phi); stp=sin(theta+phi)
+        pos.head_circ_on[1]=pos.xy[1]+pos.arms[1]*ct+ctp*pos.head_circ_orig[1]-stp*pos.head_circ_orig[2]
+        pos.head_circ_on[2]=pos.xy[2]+pos.arms[1]*st+stp*pos.head_circ_orig[1]+ctp*pos.head_circ_orig[2]
+    end
+
     #Not needed just for plotting
     #point_translate!(pos.axis_on_target,pos.axis_on_target,pos.xy[1],pos.xy[2])
 end
@@ -232,19 +256,31 @@ disc[4:5] centre of the head (phi arm) polygon in head_orig coordinates, disc[6]
 Every vertex is inside its circle, hence (circle being convex) the whole polygon is too.
 """
 function positioner_bounding_discs!(pos::POSRobotBody,disc)
-    for (ip,poly,ioff) in ((1,pos.body_orig,0),(2,pos.head_orig,3))
+    for (ip,poly,ioff,circ) in ((1,pos.body_orig,0,pos.body_circ_orig),(2,pos.head_orig,3,pos.head_circ_orig))
         n=pos.nseg[ip]
         xmin=Inf; xmax=-Inf; ymin=Inf; ymax=-Inf
         for ii in 1:n
             xmin=min(xmin,poly[ii,1]); xmax=max(xmax,poly[ii,1])
             ymin=min(ymin,poly[ii,2]); ymax=max(ymax,poly[ii,2])
         end
+        if(circ[3]>0)
+            xmin=min(xmin,circ[1]-circ[3]); xmax=max(xmax,circ[1]+circ[3])
+            ymin=min(ymin,circ[2]-circ[3]); ymax=max(ymax,circ[2]+circ[3])
+        end
+        if(xmin>xmax) #no shape at all
+            disc[ioff+1]=0.0; disc[ioff+2]=0.0; disc[ioff+3]=0.0
+            continue
+        end
         cx=0.5*(xmin+xmax); cy=0.5*(ymin+ymax)
         r2=0.0
         for ii in 1:n
             r2=max(r2,(poly[ii,1]-cx)^2+(poly[ii,2]-cy)^2)
         end
-        disc[ioff+1]=cx; disc[ioff+2]=cy; disc[ioff+3]=sqrt(r2)
+        rr=sqrt(r2)
+        if(circ[3]>0)
+            rr=max(rr,hypot(circ[1]-cx,circ[2]-cy)+circ[3])
+        end
+        disc[ioff+1]=cx; disc[ioff+2]=cy; disc[ioff+3]=rr
     end
 end
 
@@ -335,6 +371,9 @@ function phi_arm_reach(pos::POSRobotBody)
     for ii in 1:pos.nseg[2]
         r=max(r,hypot(pos.head_orig[ii,1],pos.head_orig[ii,2]))
     end
+    if(pos.head_circ_orig[3]>0)
+        r=max(r,hypot(pos.head_circ_orig[1],pos.head_circ_orig[2])+pos.head_circ_orig[3])
+    end
     return pos.arms[1]+r
 end
 
@@ -343,6 +382,16 @@ true if the phi arm of pos (already moved to its target) crosses the petal or GF
 """
 function phi_arm_hits_edges(pos::POSRobotBody,keepouts)
     head=view(pos.head_on_target,1:pos.nseg[2],:)
+    if(pos.head_circ_orig[3]>0)
+        for K in keepouts
+            if(point_outline_distance(pos.head_circ_on[1],pos.head_circ_on[2],K)<pos.head_circ_orig[3])
+                return true
+            end
+        end
+    end
+    if(pos.nseg[2]==0)
+        return false
+    end
     return PolygonEdgesCross(head,keepouts[1]) || PolygonEdgesCross(head,keepouts[2])
 end
 
@@ -355,7 +404,8 @@ pos_type: purpose of validity testing
 """
 function valid_positionter(fp_dic,pp;pos_type="assignment")
     if(pos_type=="assignment")
-        return ((fp_dic["DEVICE_TYPE"][pp]=="POS") & (fp_dic["LENGTH_R1"][pp]!=0.0))
+        return ((fp_dic["DEVICE_TYPE"][pp]=="POS") & (fp_dic["LENGTH_R1"][pp]!=0.0) &
+                ((fp_dic["STATE"][pp] & (FIBER_STATE_STUCK|FIBER_STATE_BROKEN))==0))
     elseif(pos_type=="neighbour_collision")
         return ((fp_dic["DEVICE_TYPE"][pp]=="POS") & (fp_dic["LENGTH_R1"][pp]!=0.0))
     end
@@ -453,13 +503,54 @@ end
 
 
 
+#circle helpers for arm shapes that contain a circle (circle-circle, circle-segment as in fiberassign)
+"""true if circle (cx,cy,r) touches the closed polygon poly (edge closer than r, or centre inside)"""
+function circle_polygon_intersect(cx,cy,r,poly)
+    if(size(poly,1)==0 || r<=0)
+        return false
+    end
+    if(point_outline_distance(cx,cy,poly)<r)
+        return true
+    end
+    return InPolyWinding_loop([cx,cy],poly)
+end
+
+"""true if the arm shape (polygon P1 and/or circle c1) touches arm shape (P2 and/or c2); circles are (cx,cy,r)"""
+function arm_shapes_intersect(P1,c1,P2,c2)
+    if((size(P1,1)>0) && (size(P2,1)>0))
+        if(PolyIntersect_boundingbox(P1,P2) && PolygonsIntersect(P1,P2))
+            return true
+        end
+    end
+    if((c1[3]>0) && (c2[3]>0) && ((c1[1]-c2[1])^2+(c1[2]-c2[2])^2 < (c1[3]+c2[3])^2))
+        return true
+    end
+    if((c1[3]>0) && circle_polygon_intersect(c1[1],c1[2],c1[3],P2))
+        return true
+    end
+    if((c2[3]>0) && circle_polygon_intersect(c2[1],c2[2],c2[3],P1))
+        return true
+    end
+    return false
+end
+
 """Compare the moved positioner positioner to check if either the body or head-boy is collided
 body-body collision is not considered as it is not possible in the focal plane
 pos1: first positioner of type POSRobotBody
 pos2: second positioner of type POSRobotBody
 """
 function positioner_collided(pos1,pos2)
-    
+    #arms with a circle use the general shape test; polygon-only arms use the original test below
+    if((pos1.body_circ_orig[3]>0)||(pos1.head_circ_orig[3]>0)||(pos2.body_circ_orig[3]>0)||(pos2.head_circ_orig[3]>0))
+        h1=view(pos1.head_on_target,1:pos1.nseg[2],:); b1=view(pos1.body_on_target,1:pos1.nseg[1],:)
+        h2=view(pos2.head_on_target,1:pos2.nseg[2],:); b2=view(pos2.body_on_target,1:pos2.nseg[1],:)
+        ch1=(pos1.head_circ_on[1],pos1.head_circ_on[2],pos1.head_circ_orig[3])
+        cb1=(pos1.body_circ_on[1],pos1.body_circ_on[2],pos1.body_circ_orig[3])
+        ch2=(pos2.head_circ_on[1],pos2.head_circ_on[2],pos2.head_circ_orig[3])
+        cb2=(pos2.body_circ_on[1],pos2.body_circ_on[2],pos2.body_circ_orig[3])
+        return arm_shapes_intersect(h1,ch1,h2,ch2) || arm_shapes_intersect(h1,ch1,b2,cb2) || arm_shapes_intersect(h2,ch2,b1,cb1)
+    end
+
     head1=view(pos1.head_on_target,1:pos1.nseg[2],:)
     head2=view(pos2.head_on_target,1:pos2.nseg[2],:)
     

@@ -268,6 +268,10 @@ function load_hw_focalplane_file(config;date="2019-09-16T00:00:00")
 
     if(isfile(fp_jld2))
         #fp_base=load(fp_jld2,"base")
+        #newer focal-plane files have no MIN_T/MAX_T/MIN_P/MAX_P (they are in the state file)
+        base_cols=jldopen(fp_jld2,"r") do f
+            [c for c in base_cols if haskey(f,c)]
+        end
         fp_base=read_columns_jld2(fp_jld2,base_cols)
     else
         file_fp="$(config["focalplane_dir"])desi-focalplane_$(date).ecsv"
@@ -277,6 +281,7 @@ function load_hw_focalplane_file(config;date="2019-09-16T00:00:00")
             df=CSV.read(file_fp, DataFrame;delim=" ",comment="#",header=1)
             
             DataFrame_TO_JLD2(df,fp_jld2,base_cols)
+            base_cols=[c for c in base_cols if c in names(df)]
             fp_base=read_columns_jld2(fp_jld2,base_cols)
         end
     end
@@ -294,27 +299,39 @@ function load_hw_focalplane_file(config;date="2019-09-16T00:00:00")
     return fp_base
 end
 
+
+"""parse a desimodel time string ("2022-09-21T17:00:39+00:00" or "2019-09-16T00:00:00"), UTC"""
+parse_desi_time(t::DateTime)=t   #CSV may already parse the TIME column (e.g. no "+00:00" suffix)
+parse_desi_time(t)=DateTime(String(t)[1:19],dateformat"yyyy-mm-ddTHH:MM:SS")
+
 function load_hw_state_file(config;date="2019-09-16T00:00:00")
-
-    base_cols=["LOCATION", "STATE", "EXCLUSION"]
-    st_jld2="$(config["focalplane_dir_jld2"])desi-state_$(date).jld2"
-    
-
-    if(isfile(st_jld2))
-        st_base=read_columns_jld2(st_jld2,base_cols)
+    file_st="$(config["focalplane_dir"])desi-state_$(date).ecsv"
+    @assert isfile(file_st) "State file not found: $(file_st)"
+    df=CSV.read(file_st, DataFrame;delim=" ",comment="#",header=1)
+    state_time= haskey(config,"state_time") ? config["state_time"] : date
+    tsel=parse_desi_time(state_time)
+    nrow=size(df,1)
+    if("TIME" in names(df))
+        trow=[parse_desi_time(t) for t in df[!,"TIME"]]
+        @assert minimum(trow)<=tsel "state_time $(state_time) is before the first entry of $(file_st) ($(minimum(trow))): use the focal-plane model valid at that time"
+        order=sortperm(trow)             # stable: rows with equal TIME keep file order
+        rows=[ii for ii in order if trow[ii]<=tsel]
     else
-        file_st="$(config["focalplane_dir"])desi-state_$(date).ecsv"
-        if(! isfile(file_st))
-            warn("File not Found $(file_st)")
-        else#Load the csv file convert to jld2 file
-            df=CSV.read(file_st, DataFrame;delim=" ",comment="#",header=1)
-            #Write the JLD2 file
-            DataFrame_TO_JLD2(df,st_jld2,base_cols)
-            #st_base=load(st_jld2,"base")
-            st_base=read_columns_jld2(st_jld2,base_cols)
-        end
+        rows=collect(1:nrow)
     end
-    return st_base
+    #last valid row per LOCATION
+    last_row=Dict{Int,Int}()
+    for ii in rows
+        last_row[Int(df[ii,"LOCATION"])]=ii
+    end
+    st=Dict{String,Any}()
+    st["loc_to_row"]=last_row
+    st["columns"]=[c for c in names(df) if c in ["STATE","EXCLUSION","MIN_T","MAX_T","MIN_P","MAX_P","POS_T","POS_P"]]
+    for c in st["columns"]
+        st[c]=collect(df[!,c])
+    end
+    st["state_time"]=String(string(state_time))
+    return st
 end
 
 
@@ -376,9 +393,19 @@ function load_hw_exclusion_file(config;date="2019-09-16T00:00:00")
     if(isfile(exc_jld2))
         exc=load_exclusion(exc_jld2)
     else
-        file_exc="$(config["focalplane_dir"])desi-exclusion_$(date).yaml"
-        #loads the yaml file
-        desi_exc=YAML.load_file(file_exc)
+        file_exc=""
+        for ext in [".yaml",".yaml.gz",".json",".json.gz"]
+            if(isfile("$(config["focalplane_dir"])desi-exclusion_$(date)$(ext)"))
+                file_exc="$(config["focalplane_dir"])desi-exclusion_$(date)$(ext)"
+                break
+            end
+        end
+        @assert file_exc!="" "No exclusion file desi-exclusion_$(date).[yaml|yaml.gz|json|json.gz] in $(config["focalplane_dir"])"
+        if(endswith(file_exc,".gz"))
+            desi_exc=YAML.load(read(pipeline(`gzip -dc $(file_exc)`),String))
+        else
+            desi_exc=YAML.load_file(file_exc)
+        end
         #flattens the ditionary, convert to array and compress and save
         transform_dictionary_flatJLD(exc_jld2,desi_exc)
         
@@ -455,27 +482,55 @@ function load_hw_full_FocalPlane!(config;date="2019-09-16T00:00:00",
     
     #Now append a state column to the original fp_dic
     nobj=size(fp_dic["OFFSET_X"],1)
-    fp_dic["STATE"]=zeros(Int8,nobj)
-    fp_dic["STATE"] .= default_prop["STATE"]
-    fp_dic["EXCLUSION"]=[default_prop["EXCLUSION"] for ii=1:nobj]#zeros(String,nobj)
-    #In the future we might want to update other positioner info like R1,R2 or theta,phi limits
-    
-    
-    isort_state=sortperm(state_dic["LOCATION"])
-    isort_fp=sortperm(fp_dic["LOCATION"])
-    
-    nst=size(isort_state,1)
-    ist=1
+    fp_dic["STATE"]=zeros(Int64,nobj) .+ default_prop["STATE"]
+    fp_dic["EXCLUSION"]=[String(default_prop["EXCLUSION"]) for ii=1:nobj]
+    for c in ["MIN_T","MAX_T","MIN_P","MAX_P"]
+        if(!haskey(fp_dic,c))
+            fp_dic[c]=fill(NaN,nobj)
+        else
+            fp_dic[c]=Float64.(fp_dic[c])
+        end
+    end
+    fp_dic["POS_T"]=fill(NaN,nobj)
+    fp_dic["POS_P"]=fill(NaN,nobj)
+    nmatch=0
     for ii in 1:nobj
-        if(ist>nst)#fill default
-            break
-        elseif(fp_dic["LOCATION"][isort_fp[ii]]==state_dic["LOCATION"][isort_state[ist]])
-            for prop in ["STATE","EXCLUSION"]
-               fp_dic[prop][isort_fp[ii]]= state_dic[prop][isort_state[ist]]
+        loc=Int(fp_dic["LOCATION"][ii])
+        if(!haskey(state_dic["loc_to_row"],loc))
+            continue
+        end
+        nmatch+=1
+        rr=state_dic["loc_to_row"][loc]
+        fp_dic["STATE"][ii]=Int64(state_dic["STATE"][rr])
+        fp_dic["EXCLUSION"][ii]=String(state_dic["EXCLUSION"][rr])
+        for c in ["MIN_T","MAX_T","MIN_P","MAX_P","POS_T","POS_P"]
+            if(c in state_dic["columns"])
+                fp_dic[c][ii]=Float64(state_dic[c][rr])
             end
         end
-        ist +=1
     end
+    #old-format state (no POS_T/POS_P): park a STUCK/BROKEN arm as fiberassign does (theta at its
+    #minimum, phi at its maximum but not beyond 180 deg folded), angles relative to the offsets
+    for ii in 1:nobj
+        if(isnan(fp_dic["POS_T"][ii]))
+            fp_dic["POS_T"][ii]=fp_dic["MIN_T"][ii]
+        end
+        if(isnan(fp_dic["POS_P"][ii]))
+            fp_dic["POS_P"][ii]=min(fp_dic["MAX_P"][ii]+fp_dic["OFFSET_P"][ii],180.0)-fp_dic["OFFSET_P"][ii]
+        end
+    end
+    #every positioner must have angle limits after the merge
+    for ii in 1:nobj
+        if(fp_dic["DEVICE_TYPE"][ii]=="POS")
+            for c in ["MIN_T","MAX_T","MIN_P","MAX_P"]
+                @assert !isnan(fp_dic[c][ii]) "LOCATION $(fp_dic["LOCATION"][ii]) has no $(c) in the focal-plane or state file"
+            end
+        end
+    end
+    npos=count(==("POS"),fp_dic["DEVICE_TYPE"])
+    nbad=count(ii->(fp_dic["DEVICE_TYPE"][ii]=="POS") && ((fp_dic["STATE"][ii] & (FIBER_STATE_STUCK|FIBER_STATE_BROKEN))!=0),1:nobj)
+    println("Focal plane $(date), state at $(state_dic["state_time"]): $(nmatch)/$(nobj) devices in state file; ",
+        "$(npos) POS of which $(nbad) STUCK/BROKEN (not assigned, fixed obstacles)")
 
     #add date to the dictionaries  
     fp_dic["tile_date"] =date
@@ -486,6 +541,13 @@ end
 
 
 
+
+#fiber-state bits as in fiberassign (src/hardware.h)
+const FIBER_STATE_OK=0
+const FIBER_STATE_UNASSIGNED=1
+const FIBER_STATE_STUCK=2
+const FIBER_STATE_BROKEN=4
+const FIBER_STATE_RESTRICT=8
 
 """convert positioner x,y to theta phi for the positioner
 """

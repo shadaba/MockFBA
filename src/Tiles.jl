@@ -473,12 +473,20 @@ function Assign_Tile(config,fp_dic,exc_dic,targets_dic;num_fba=3,max_vertices=30
                         for ingb in 1:pos_ngb_dic["count_ngb"]
                             ngb_pp=pos_ngb_dic["pos_index"][ingb]
                             ingb_index=position_assigned[ngb_pp,ri]
+                            #a STUCK/BROKEN neighbour is never assigned but is a fixed obstacle at OFFSET+POS
+                            ngb_stuck=((fp_dic["STATE"][ngb_pp] & (FIBER_STATE_STUCK|FIBER_STATE_BROKEN))!=0)
+                            if(ngb_stuck)
+                                ingb_index=-1
+                            end
                             if(ingb_index==0)
                                 continue
                             end
                             #neighbour angles and circle centres for its assigned target (only when it changed)
                             if(ngb_target[ingb]!=ingb_index)
-                                if(config["OUTPUT"]["ThetaPhi_pos"])#use pre-computed values
+                                if(ngb_stuck)
+                                    th_ngb=deg2rad(fp_dic["OFFSET_T"][ngb_pp]+fp_dic["POS_T"][ngb_pp])
+                                    phi_ngb=deg2rad(fp_dic["OFFSET_P"][ngb_pp]+fp_dic["POS_P"][ngb_pp])
+                                elseif(config["OUTPUT"]["ThetaPhi_pos"])#use pre-computed values
                                     th_ngb=theta_assigned[ngb_pp,ri]
                                     phi_ngb=phi_assigned[ngb_pp,ri]
                                 else #compute the assigned theta_phi
@@ -569,19 +577,33 @@ function Assign_Tile(config,fp_dic,exc_dic,targets_dic;num_fba=3,max_vertices=30
                 fill!(in_poly,false)
                 fill!(in_circle,false)
                 
-                #determine the collisions and potential collision with body
-                PointsInPoly_and_PaddedCircle!(view(zone_target.X_FP,pot_ass_coll_index[1:npot_ass_coll]),
-                   view(zone_target.Y_FP,pot_ass_coll_index[1:npot_ass_coll]),
-                    view(pos_cur.body_on_target,1:pos_cur.nseg[1],:),
-                    pos_cur.head_minmax[2];max_rad=pos_cur.body_minmax[2],
-                    in_poly=in_poly,in_circle=in_circle)
-                
+                #determine the collisions and potential collision with body (skipped if the arm has no polygon)
+                if(pos_cur.nseg[1]>0)
+                    PointsInPoly_and_PaddedCircle!(view(zone_target.X_FP,pot_ass_coll_index[1:npot_ass_coll]),
+                       view(zone_target.Y_FP,pot_ass_coll_index[1:npot_ass_coll]),
+                        view(pos_cur.body_on_target,1:pos_cur.nseg[1],:),
+                        pos_cur.head_minmax[2];max_rad=pos_cur.body_minmax[2],
+                        in_poly=in_poly,in_circle=in_circle)
+                end
+
                 #determine the collisions and potential collision with head
-                PointsInPoly_and_PaddedCircle!(view(zone_target.X_FP,pot_ass_coll_index[1:npot_ass_coll]),
-                   view(zone_target.Y_FP,pot_ass_coll_index[1:npot_ass_coll]),
-                    view(pos_cur.head_on_target,1:pos_cur.nseg[2],:),
-                    pos_cur.body_minmax[2];max_rad=pos_cur.head_minmax[2],
-                    in_poly=in_poly,in_circle=in_circle)
+                if(pos_cur.nseg[2]>0)
+                    PointsInPoly_and_PaddedCircle!(view(zone_target.X_FP,pot_ass_coll_index[1:npot_ass_coll]),
+                       view(zone_target.Y_FP,pot_ass_coll_index[1:npot_ass_coll]),
+                        view(pos_cur.head_on_target,1:pos_cur.nseg[2],:),
+                        pos_cur.body_minmax[2];max_rad=pos_cur.head_minmax[2],
+                        in_poly=in_poly,in_circle=in_circle)
+                end
+                #targets inside an arm circle are collided too
+                for (cc,co) in ((pos_cur.body_circ_orig,pos_cur.body_circ_on),(pos_cur.head_circ_orig,pos_cur.head_circ_on))
+                    if(cc[3]>0)
+                        for (jj,kk) in enumerate(pot_ass_coll_index[1:npot_ass_coll])
+                            if((zone_target.X_FP[kk]-co[1])^2+(zone_target.Y_FP[kk]-co[2])^2 < cc[3]^2)
+                                in_poly[jj]=true
+                            end
+                        end
+                    end
+                end
 
 
                 #ind_ri=findall(local_ass .== izone)
