@@ -225,6 +225,60 @@ function move_positioner_to_theta_phi!(pos::POSRobotBody,theta,phi;
     #point_translate!(pos.axis_on_target,pos.axis_on_target,pos.xy[1],pos.xy[2])
 end
 
+"""
+Computes, for the loaded positioner pos, a bounding circle for each arm polygon in its own frame:
+disc[1:2] centre of the body (theta arm) polygon in body_orig coordinates, disc[3] its radius;
+disc[4:5] centre of the head (phi arm) polygon in head_orig coordinates, disc[6] its radius.
+Every vertex is inside its circle, hence (circle being convex) the whole polygon is too.
+"""
+function positioner_bounding_discs!(pos::POSRobotBody,disc)
+    for (ip,poly,ioff) in ((1,pos.body_orig,0),(2,pos.head_orig,3))
+        n=pos.nseg[ip]
+        xmin=Inf; xmax=-Inf; ymin=Inf; ymax=-Inf
+        for ii in 1:n
+            xmin=min(xmin,poly[ii,1]); xmax=max(xmax,poly[ii,1])
+            ymin=min(ymin,poly[ii,2]); ymax=max(ymax,poly[ii,2])
+        end
+        cx=0.5*(xmin+xmax); cy=0.5*(ymin+ymax)
+        r2=0.0
+        for ii in 1:n
+            r2=max(r2,(poly[ii,1]-cx)^2+(poly[ii,2]-cy)^2)
+        end
+        disc[ioff+1]=cx; disc[ioff+2]=cy; disc[ioff+3]=sqrt(r2)
+    end
+end
+
+"""
+Centres of the two bounding circles when pos is moved to (theta,phi), using the same rigid motion as
+move_positioner_to_theta_phi!: body vertex v -> xy + R(theta) v ; head vertex v -> elbow + R(theta+phi) v
+with elbow = xy + R1 (cos theta, sin theta). Returns (body_cx, body_cy, head_cx, head_cy).
+"""
+function arm_disc_centres(pos::POSRobotBody,disc,theta,phi)
+    ct=cos(theta); st=sin(theta)
+    ctp=cos(theta+phi); stp=sin(theta+phi)
+    ex=pos.xy[1]+pos.arms[1]*ct
+    ey=pos.xy[2]+pos.arms[1]*st
+    bcx=pos.xy[1]+ct*disc[1]-st*disc[2]
+    bcy=pos.xy[2]+st*disc[1]+ct*disc[2]
+    hcx=ex+ctp*disc[4]-stp*disc[5]
+    hcy=ey+stp*disc[4]+ctp*disc[5]
+    return bcx,bcy,hcx,hcy
+end
+
+"""
+true if the arms of two positioners CAN touch, judged from their bounding circles only
+(cur: body centre bc1, head centre hc1, radii in disc1; ngb: bc2, hc2, disc2).
+Tests the same pairs as positioner_collided: head-head, head1-body2, head2-body1.
+false means they certainly do not collide (exact, conservative); true means do the polygon test.
+"""
+function arm_discs_overlap(bc1x,bc1y,hc1x,hc1y,disc1,bc2x,bc2y,hc2x,hc2y,disc2)
+    eps=1e-6
+    if((hc1x-hc2x)^2+(hc1y-hc2y)^2 <= (disc1[6]+disc2[6]+eps)^2) return true end
+    if((hc1x-bc2x)^2+(hc1y-bc2y)^2 <= (disc1[6]+disc2[3]+eps)^2) return true end
+    if((hc2x-bc1x)^2+(hc2y-bc1y)^2 <= (disc2[6]+disc1[3]+eps)^2) return true end
+    return false
+end
+
 """Determines if a positioner is valid of not
 fp_dic : dictionary contaning the status of focal plane
 pp: index of positioner considered

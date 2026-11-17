@@ -473,11 +473,6 @@ function load_hw_full_FocalPlane!(config;date="2019-09-16T00:00:00",
             for prop in ["STATE","EXCLUSION"]
                fp_dic[prop][isort_fp[ii]]= state_dic[prop][isort_state[ist]]
             end
-        #elseif(fp_dic["LOCATION"][isort_fp[ii]]<state_dic["LOCATION"][isort_state[ist]])
-        #    #fill the default
-        #    for prop in ["STATE","EXCLUSION"]
-        #       fp_dic[prop][isort_fp[ii]]= default_state[prop]
-        #    end
         end
         ist +=1
     end

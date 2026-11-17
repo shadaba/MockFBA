@@ -310,6 +310,18 @@ function Assign_Tile(config,fp_dic,exc_dic,targets_dic;num_fba=3,max_vertices=30
     move_cos_sin_sum=zeros(Float64,2)
     move_cstheta=zeros(Float64,2)
     move_csphi=zeros(Float64,2)
+
+    cur_disc=zeros(Float64,6)
+    ngb_disc=zeros(Float64,max_ngb_pos,6)
+    cur_bc=zeros(Float64,max_target,2)
+    cur_hc=zeros(Float64,max_target,2)
+    ngb_target=zeros(Int64,max_ngb_pos)
+    ngb_moved=zeros(Bool,max_ngb_pos)
+    ngb_bc=zeros(Float64,max_ngb_pos,2)
+    ngb_hc=zeros(Float64,max_ngb_pos,2)
+    ngb_theta=zeros(Float64,max_ngb_pos)  #neighbour angles for ngb_target
+    ngb_phi=zeros(Float64,max_ngb_pos)
+    cur_moved_izone=0
     
     #for reproducibility we set the random seed
     Random.seed!(config["RandomSeed"]);
@@ -339,6 +351,14 @@ function Assign_Tile(config,fp_dic,exc_dic,targets_dic;num_fba=3,max_vertices=30
                 #pos_x=fp_dic["OFFSET_X"][pp]
                 #pos_y=fp_dic["OFFSET_Y"][pp]
             end
+            #bounding circles of this robot and its neighbours (exact collision test below)
+            positioner_bounding_discs!(pos_cur,cur_disc)
+            for ingb in 1:pos_ngb_dic["count_ngb"]
+                positioner_bounding_discs!(pos_ngb_dic["pos"][ingb],view(ngb_disc,ingb,:))
+            end
+            fill!(ngb_target,0)
+            fill!(ngb_moved,false)
+            cur_moved_izone=0
             
             #maximum distance to which positioner reach
             #max_r2=(fp_dic["LENGTH_R1"][pp]+fp_dic["LENGTH_R2"][pp])^2 
@@ -396,10 +416,14 @@ function Assign_Tile(config,fp_dic,exc_dic,targets_dic;num_fba=3,max_vertices=30
             #npot_coll=find_index!(zone_target.pot_coll[1:zone_target.ntarget[1]],pot_coll_index)
             npot_ass_coll=find_index_OR!(view(zone_target.pot_ass,1:zone_target.ntarget[1]), 
                 view(zone_target.pot_coll,1:zone_target.ntarget[1]),pot_ass_coll_index)
+            for izone in pot_ass_index[1:npot_ass]
+                cur_bc[izone,1],cur_bc[izone,2],cur_hc[izone,1],cur_hc[izone,2]=arm_disc_centres(pos_cur,cur_disc,
+                    zone_target.theta_pos[izone],zone_target.phi_pos[izone])
+            end
             
            
                 
-            coll_map_dic=Dict()
+            coll_map_dic=Dict{NTuple{3,Int},Bool}()
             #loop over realizations
             for ri in 1:num_fba
                 count=0
@@ -420,66 +444,63 @@ function Assign_Tile(config,fp_dic,exc_dic,targets_dic;num_fba=3,max_vertices=30
                         end
                         
                         
-                        #@show ri,uu,izone
-                        #check if this object is in potential collision
-                        if(potential_coll[zone_target.index[izone],ri])
-                            #Asuuming no-collision and should change if found collided
-                            actual_collision=false
-                            
-                            #Now check if this is actual collision with another positioner
-                            #scan over neighbour positioner assigned
-                            for ingb in 1:pos_ngb_dic["count_ngb"]
-                                #check if positioner is assigned to a target
-                                if(position_assigned[pos_ngb_dic["pos_index"][ingb],ri]==0)
-                                    continue
+                        #exact arm-collision test against every neighbour assigned in this realisation (and
+                        #fixed neighbours); bounding circles skip pairs that cannot touch, results are cached
+                        actual_collision=false
+                        for ingb in 1:pos_ngb_dic["count_ngb"]
+                            ngb_pp=pos_ngb_dic["pos_index"][ingb]
+                            ingb_index=position_assigned[ngb_pp,ri]
+                            if(ingb_index==0)
+                                continue
+                            end
+                            #neighbour angles and circle centres for its assigned target (only when it changed)
+                            if(ngb_target[ingb]!=ingb_index)
+                                if(config["OUTPUT"]["ThetaPhi_pos"])#use pre-computed values
+                                    th_ngb=theta_assigned[ngb_pp,ri]
+                                    phi_ngb=phi_assigned[ngb_pp,ri]
+                                else #compute the assigned theta_phi
+                                    th_ngb,phi_ngb=Hardware_xy_to_thetaphi(pos_ngb_dic["pos"][ingb],
+                                        targets_dic["X_FP"][ingb_index],targets_dic["Y_FP"][ingb_index])
                                 end
-                                
-                                
-                                #Target to which positioner is assigned
-                                ingb_index=position_assigned[pos_ngb_dic["pos_index"][ingb],ri]
-                                #check if there is an entry for this collision test
-                                if( (izone,ingb,ingb_index) in keys(coll_map_dic) )
-                                    actual_collision=coll_map_dic[(izone,ingb,ingb_index)]
-                                else #now since it is not tested already check for this collision
-                                    #move the neighbour to the assigned location
-                                    if(config["OUTPUT"]["ThetaPhi_pos"])#use pre-computed values
-                                        th_ngb=theta_assigned[pos_ngb_dic["pos_index"][ingb],ri]
-                                        phi_ngb=phi_assigned[pos_ngb_dic["pos_index"][ingb],ri]
-                                    else #compute the assigned theta_phi
-                                        itr=position_assigned[pos_ngb_dic["pos_index"][ingb],ri]
-                                        th_ngb,phi_ngb=Hardware_xy_to_thetaphi(pos_ngb_dic["pos"][ingb],
-                                            targets_dic["X_FP"][itr],targets_dic["Y_FP"][itr])
-                                    end
-                                    #Now move the positioner
-                                    move_positioner_to_theta_phi!(pos_ngb_dic["pos"][ingb],th_ngb,phi_ngb,
+                                ngb_bc[ingb,1],ngb_bc[ingb,2],ngb_hc[ingb,1],ngb_hc[ingb,2]=arm_disc_centres(
+                                    pos_ngb_dic["pos"][ingb],view(ngb_disc,ingb,:),th_ngb,phi_ngb)
+                                ngb_target[ingb]=ingb_index
+                                ngb_moved[ingb]=false
+                                ngb_theta[ingb]=th_ngb
+                                ngb_phi[ingb]=phi_ngb
+                            end
+                            #1) bounding circles cannot touch -> certainly no collision with this neighbour
+                            if(!arm_discs_overlap(cur_bc[izone,1],cur_bc[izone,2],cur_hc[izone,1],cur_hc[izone,2],cur_disc,
+                                    ngb_bc[ingb,1],ngb_bc[ingb,2],ngb_hc[ingb,1],ngb_hc[ingb,2],view(ngb_disc,ingb,:)))
+                                continue
+                            end
+                            #2) exact polygon test, cached
+                            ckey=(Int(izone),Int(ingb),Int(ingb_index))
+                            if(haskey(coll_map_dic,ckey))
+                                actual_collision=coll_map_dic[ckey]
+                            else
+                                if(!ngb_moved[ingb])
+                                    move_positioner_to_theta_phi!(pos_ngb_dic["pos"][ingb],ngb_theta[ingb],ngb_phi[ingb],
                                         diff_v=move_diff_v,cos_sin=move_cos_sin,cos_sin_sum=move_cos_sin_sum,
                                         cstheta=move_cstheta,csphi=move_csphi)
-                                    
-                                    
-                                    #move current positioner to this target
+                                    ngb_moved[ingb]=true
+                                end
+                                if(cur_moved_izone!=izone)
                                     move_positioner_to_theta_phi!(pos_cur,
                                         zone_target.theta_pos[izone] ,zone_target.phi_pos[izone],
                                         diff_v=move_diff_v,cos_sin=move_cos_sin,cos_sin_sum=move_cos_sin_sum,
                                         cstheta=move_cstheta,csphi=move_csphi)
-                                    
-                                    
-                                    #check for the collision
-                                    actual_collision=positioner_collided(pos_cur,pos_ngb_dic["pos"][ingb])
-                                    #store this in local map
-                                    coll_map_dic[(izone,ingb,ingb_index)]=actual_collision
-                                    
+                                    cur_moved_izone=izone
                                 end
-                                
-                                
-                                if(actual_collision)
-                                    break
-                                end
-                            end #end of loop for scanning the neighbouring positioner
-                            
-                            #check of the two positioners are collided
-                            if(actual_collision)
-                                continue
+                                actual_collision=positioner_collided(pos_cur,pos_ngb_dic["pos"][ingb])
+                                coll_map_dic[ckey]=actual_collision
                             end
+                            if(actual_collision)
+                                break
+                            end
+                        end #end of loop over neighbouring positioners
+                        if(actual_collision)
+                            continue
                         end
                         
                         #This object can be assigned
