@@ -321,6 +321,10 @@ def combine_group_to_singlefits(config,group,tracer):
     #print(outfile_str)
     zone_fits=glob.glob(outfile_str)
     outfile="%s%s_%s.fits.gz"%(outdir,tracer,group)
+    #no object of this tracer in this cap: nothing to combine
+    if(len(zone_fits)==0):
+        print("Warning: no zone fits for %s %s, no combined file written"%(tracer,group))
+        return
     #combin_fits(zone_fits,outfile,config)
     combin_fits(zone_fits,outfile,original_fits=config["target"][tracer]["FITSfile"],
             Original_columns=config["target"][tracer]["carry_columns"],
@@ -437,6 +441,11 @@ def check_config_file(config):
         if(np.min(F.FITS(ftile,"r")[1]["TILEID"][:])<1):
             print("Error: The TILEID in %s is less than 1, TILEID must be >=1"%(ftile))
             raise 
+
+    #realisations are packed in 32-bit words (FBA_BITS): any other count would drop realisations silently
+    nfba=config["NumFBARealization"]
+    if((not isinstance(nfba,int)) or nfba<32 or nfba%32!=0):
+        raise ValueError("NumFBARealization=%s must be a positive multiple of 32 (32, 64, 96, ...)"%(nfba))
 
     #Now check if all the target files exists and add JLD file columns
     for tracer in list(config["target"].keys()):
