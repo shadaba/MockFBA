@@ -110,7 +110,8 @@ function sort_ZoneXp_Apply!(zone_xy,Xp,tdic)
     tdic["zone_map"]=Dict()
     uu=1
     tdic["zone_map"][uszone[uu]]=[first_zone[uu],last_zone[uu]]
-    max_per_zone=tdic["zone_map"][uszone[uu]][2]-tdic["zone_map"][uszone[uu]][1]
+    #inclusive range: +1, as for the other zones below
+    max_per_zone=tdic["zone_map"][uszone[uu]][2]-tdic["zone_map"][uszone[uu]][1]+1
     min_per_zone=max_per_zone
     for uu in 2:nunique_zone
         tdic["zone_map"][uszone[uu]]=[first_zone[uu],last_zone[uu]]

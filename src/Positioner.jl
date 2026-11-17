@@ -153,7 +153,11 @@ function point_rotate_axis!(point_in,cstheta,axis,point_out;
         diff_v=zeros(Float64,2),cos_sin=zeros(Float64,2),cos_sin_sum=zeros(Float64,2))
     diff_v .= point_in .- axis
     if((diff_v[1]==0) & (diff_v[2]==0))
-        return point_in[1],point_in[2]
+        #a point on the axis does not move, but point_out must still be written
+        x_in=point_in[1]; y_in=point_in[2]
+        point_out[1]=x_in
+        point_out[2]=y_in
+        return x_in,y_in
     end
 
     rad=sqrt(sum(diff_v.^2))
