@@ -77,16 +77,19 @@ function sort_by_zone_priority(indsel,zone_num,obj_priority)
     take second variable and set in the minimum difference
     add the scale second variable to first one and sort by this new quantity
     =#
-    #sort by zone
-    izone_sort=sortperm(zone_num)
-    mindif=zone_num[izone_sort[2]]-zone_num[izone_sort[1]]
+    #sort by zone, then by priority (high first) within a zone; the priority part is scaled to [0,0.5]
+    #so it never reaches the next zone number, and is 0 if all priorities are equal (no 0/0)
     
     #scale the second variable
     pr_min=minimum(obj_priority)
     pr_max=maximum(obj_priority)
     
     #new quantity for sorting
-    new_q=(obj_priority .- pr_min)./(pr_max-pr_min)
+    if(pr_max>pr_min)
+        new_q=(obj_priority .- pr_min).*(0.5/(pr_max-pr_min))
+    else
+        new_q=zeros(Float64,size(obj_priority,1))
+    end
     new_q=new_q+zone_num
     izone_sort=sortperm(new_q,rev=:true)
     return izone_sort
@@ -819,6 +822,7 @@ function pre_process_FITS2JLD_tracer(fname,priority,priority_frac,outfile)
     #indsel=indsel[1:1000:size(indsel,1)]
     nobj=size(indsel,1)
     println("$(now(UTC)) PREP nobj selection (footprint and nz): $(nobj)")
+    @assert nobj>0 "No object in $(fname) passes the STATUS selection (bits 0 and 1 set): nothing to pre-process for this tracer"
     
     #read ra,dec of selection
     ra=keepat!(read(fin[2],"RA"),indsel)
