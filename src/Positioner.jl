@@ -407,7 +407,7 @@ function valid_positionter(fp_dic,pp;pos_type="assignment")
         return ((fp_dic["DEVICE_TYPE"][pp]=="POS") & (fp_dic["LENGTH_R1"][pp]!=0.0) &
                 ((fp_dic["STATE"][pp] & (FIBER_STATE_STUCK|FIBER_STATE_BROKEN))==0))
     elseif(pos_type=="neighbour_collision")
-        return ((fp_dic["DEVICE_TYPE"][pp]=="POS") & (fp_dic["LENGTH_R1"][pp]!=0.0))
+        return ((fp_dic["DEVICE_TYPE"][pp] in ("POS","ETC")) & (fp_dic["LENGTH_R1"][pp]!=0.0))
     end
 end
 
