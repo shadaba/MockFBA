@@ -253,7 +253,7 @@ num_fba: number of fba realization to generate
 max_vertices maximum number of vertices any of the positioner polygon can have
 max_ngb_pos: maximum number of negibohuring positioner any positioner can have
 """
-function Assign_Tile(config,fp_dic,exc_dic,targets_dic;num_fba=3,max_vertices=30,max_ngb_pos=9)
+function Assign_Tile(config,fp_dic,exc_dic,targets_dic;num_fba=3,max_vertices=30,max_ngb_pos=9,tile_id=0)
     #Make sure the num_fba is propagated correctly
     @assert num_fba==size(targets_dic["collided"],2) "num_fba is not propagated correctl $(num_fba), $(size(targets_dic["collided"],2))"
 
@@ -326,7 +326,8 @@ function Assign_Tile(config,fp_dic,exc_dic,targets_dic;num_fba=3,max_vertices=30
     cur_moved_izone=0
     
     #for reproducibility we set the random seed
-    Random.seed!(config["RandomSeed"]);
+    #one reproducible random stream per tile
+    Random.seed!(Random.default_rng(),UInt64[config["RandomSeed"],tile_id]);
     
     for zone_xy in keys(fp_dic["zone_map"])
         #get the zone
@@ -775,7 +776,7 @@ function Run_Single_Tile(config,tile_index,tiles_dic;group="",tile_date="2019-09
 
     #run the assignment
     position_assigned,theta_assigned,phi_assigned=Assign_Tile(config,fp_dic,exc_dic,targets_dic,
-        num_fba=config["NumFBARealization"],max_vertices=30,max_ngb_pos=9)
+        num_fba=config["NumFBARealization"],max_vertices=30,max_ngb_pos=9,tile_id=tile_id)
     
     if(verbose>1)
         append!(events_dic["times"],[now(UTC)])
