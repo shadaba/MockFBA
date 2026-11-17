@@ -258,8 +258,9 @@ function load_positioner_neighbours!(pos_cur,pindex,fp_bound,fp_dic,exc_dic,pos_
     
     #@show zone_x,zone_y,zone_xy
     count_pos=1
-    for zx in maximum([zone_x-1,1]):minimum([zone_x+1,fp_bound.nx])
-        for zy in maximum([zone_y-1,1]):minimum([zone_y+1,fp_bound.ny])
+    #zone_x and zone_y run from 0 to nx-1 and ny-1
+    for zx in maximum([zone_x-1,0]):minimum([zone_x+1,fp_bound.nx-1])
+        for zy in maximum([zone_y-1,0]):minimum([zone_y+1,fp_bound.ny-1])
             zone_xy=get_zonexy(zx,zy,fp_bound)
             
             #@show zx,zy,zone_xy
