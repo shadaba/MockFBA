@@ -33,7 +33,8 @@ struct Zone_Target
     possible_ass::Array{Int32,1}
     
     function  Zone_Target(maximum_target::Integer,nunique_priority::Integer)
-        new(maximum_target,nunique_priority,zeros(3),zeros(2),zeros(maximum_target),zeros(maximum_target),zeros(maximum_target),
+        # zones starts at an impossible cell, so the first request for cell (0,0) is loaded
+        new(maximum_target,nunique_priority,fill(-1,3),zeros(2),zeros(maximum_target),zeros(maximum_target),zeros(maximum_target),
         zeros(maximum_target),zeros(Bool,maximum_target),zeros(Bool,maximum_target),
         zeros(maximum_target),zeros(maximum_target),
         zeros(nunique_priority),zeros(Bool,maximum_target,nunique_priority),
@@ -55,8 +56,9 @@ function load_target_zone(zone_target::Zone_Target,zone_x,zone_y,fp_bound,target
     #indsel=zeros(Int32,1000)
     
     count_targ=1
-    for zx in maximum([zone_x-1,1]):minimum([zone_x+1,fp_bound.nx])
-        for zy in maximum([zone_y-1,1]):minimum([zone_y+1,fp_bound.ny])
+    #zone_x and zone_y run from 0 to nx-1 and ny-1
+    for zx in maximum([zone_x-1,0]):minimum([zone_x+1,fp_bound.nx-1])
+        for zy in maximum([zone_y-1,0]):minimum([zone_y+1,fp_bound.ny-1])
             zone_xy=get_zonexy(zx,zy,fp_bound)
             
             if(!(zone_xy in targets_dic["zone_map_keys"]))

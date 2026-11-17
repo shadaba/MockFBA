@@ -61,7 +61,12 @@ function sort_ZoneXp_Apply!(zone_xy,Xp,tdic)
     #The factor of 0.5 is to make sure the maximum value of priority is lower than next zone
     #It can be any value below 1.0, 0.5 is just a conveninet choice
     #This sort of decide the resolution of values in XP
-    new_q=(Xp .- xp_min).*(0.5/(xp_max-xp_min))
+    #if all Xp are equal only the zone matters (avoids 0/0 = NaN)
+    if(xp_max>xp_min)
+        new_q=(Xp .- xp_min).*(0.5/(xp_max-xp_min))
+    else
+        new_q=zeros(Float64,nxp)
+    end
     new_q=new_q+zone_xy
     izone_sort=sortperm(new_q,rev=:true)
     
