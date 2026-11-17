@@ -237,6 +237,54 @@ function PolygonsIntersect(poly1,poly2)
             return true
         end
     end
+    #polygons can also overlap with no vertex inside the other (e.g. two arms crossing like "+")
+    if(PolygonEdgesCross(poly1,poly2))
+        return true
+    end
+    return false
+end
+
+"""orientation of point c relative to the directed line a->b (>0 left, <0 right, 0 collinear)"""
+function orient2d(ax,ay,bx,by,cx,cy)
+    return (bx-ax)*(cy-ay)-(by-ay)*(cx-ax)
+end
+
+"""true if point c (known to be collinear with a-b) lies within the bounding box of segment a-b"""
+function on_segment_box(ax,ay,bx,by,cx,cy)
+    return (min(ax,bx)<=cx<=max(ax,bx)) && (min(ay,by)<=cy<=max(ay,by))
+end
+
+"""true if segment p1-p2 and segment q1-q2 intersect (touching counts, to be conservative)"""
+function SegmentsIntersect(p1x,p1y,p2x,p2y,q1x,q1y,q2x,q2y)
+    d1=orient2d(q1x,q1y,q2x,q2y,p1x,p1y)
+    d2=orient2d(q1x,q1y,q2x,q2y,p2x,p2y)
+    d3=orient2d(p1x,p1y,p2x,p2y,q1x,q1y)
+    d4=orient2d(p1x,p1y,p2x,p2y,q2x,q2y)
+    if((((d1>0) && (d2<0)) || ((d1<0) && (d2>0))) && (((d3>0) && (d4<0)) || ((d3<0) && (d4>0))))
+        return true
+    end
+    if((d1==0) && on_segment_box(q1x,q1y,q2x,q2y,p1x,p1y)) return true end
+    if((d2==0) && on_segment_box(q1x,q1y,q2x,q2y,p2x,p2y)) return true end
+    if((d3==0) && on_segment_box(p1x,p1y,p2x,p2y,q1x,q1y)) return true end
+    if((d4==0) && on_segment_box(p1x,p1y,p2x,p2y,q2x,q2y)) return true end
+    return false
+end
+
+"""true if any edge of poly1 crosses any edge of poly2. Rows are vertices (x,y); the closing edge
+last->first is included, so it works for both closed (last row = first row) and open vertex lists."""
+function PolygonEdgesCross(poly1,poly2)
+    n1=size(poly1,1)
+    n2=size(poly2,1)
+    for ii in 1:n1
+        i2 = (ii==n1) ? 1 : ii+1
+        for jj in 1:n2
+            j2 = (jj==n2) ? 1 : jj+1
+            if(SegmentsIntersect(poly1[ii,1],poly1[ii,2],poly1[i2,1],poly1[i2,2],
+                                 poly2[jj,1],poly2[jj,2],poly2[j2,1],poly2[j2,2]))
+                return true
+            end
+        end
+    end
     return false
 end
 
