@@ -319,6 +319,8 @@ function Assign_Tile(config,fp_dic,exc_dic,targets_dic;num_fba=3,max_vertices=30
     ngb_moved=zeros(Bool,max_ngb_pos)
     ngb_bc=zeros(Float64,max_ngb_pos,2)
     ngb_hc=zeros(Float64,max_ngb_pos,2)
+    keepout_cache=Dict{Tuple{String,Int},Any}()
+    cur_keepouts=nothing
     ngb_theta=zeros(Float64,max_ngb_pos)  #neighbour angles for ngb_target
     ngb_phi=zeros(Float64,max_ngb_pos)
     cur_moved_izone=0
@@ -359,6 +361,16 @@ function Assign_Tile(config,fp_dic,exc_dic,targets_dic;num_fba=3,max_vertices=30
             fill!(ngb_target,0)
             fill!(ngb_moved,false)
             cur_moved_izone=0
+            #petal/GFA outlines, kept only if this robot's phi arm can reach them
+            cur_keepouts=petal_gfa_keepouts!(keepout_cache,exc_dic,fp_dic["EXCLUSION"][pp],
+                petal_of_location(fp_dic["LOCATION"][pp]))
+            if(cur_keepouts!=nothing)
+                reach_phi=phi_arm_reach(pos_cur)+1e-6
+                if((point_outline_distance(pos_cur.xy[1],pos_cur.xy[2],cur_keepouts[1])>reach_phi) &&
+                   (point_outline_distance(pos_cur.xy[1],pos_cur.xy[2],cur_keepouts[2])>reach_phi))
+                    cur_keepouts=nothing
+                end
+            end
             
             #maximum distance to which positioner reach
             #max_r2=(fp_dic["LENGTH_R1"][pp]+fp_dic["LENGTH_R2"][pp])^2 
@@ -390,6 +402,16 @@ function Assign_Tile(config,fp_dic,exc_dic,targets_dic;num_fba=3,max_vertices=30
                                 pos_cur.body_theta_limit,pos_cur.head_theta_limit) )
                         zone_target.pot_ass[ii]=false
                         zone_target.pot_coll[ii]=true
+                    end
+                    #reject the target if the phi arm would cross the petal edge or a GFA
+                    if(zone_target.pot_ass[ii] && (cur_keepouts!=nothing))
+                        move_positioner_to_theta_phi!(pos_cur,zone_target.theta_pos[ii],zone_target.phi_pos[ii],
+                            diff_v=move_diff_v,cos_sin=move_cos_sin,cos_sin_sum=move_cos_sin_sum,
+                            cstheta=move_cstheta,csphi=move_csphi)
+                        if(phi_arm_hits_edges(pos_cur,cur_keepouts))
+                            zone_target.pot_ass[ii]=false
+                            zone_target.pot_coll[ii]=true
+                        end
                     end
                 else
                     zone_target.pot_ass[ii]=false

@@ -279,6 +279,73 @@ function arm_discs_overlap(bc1x,bc1y,hc1x,hc1y,disc1,bc2x,bc2y,hc2x,hc2y,disc2)
     return false
 end
 
+"""petal number of a device: DESI LOCATION = PETAL*1000 + DEVICE"""
+petal_of_location(loc)=div(Int(loc),1000)
+
+"""
+Rotated (petal outline, GFA outline) for exclusion name excl_name on petal `petal`, as Matrix{Float64}
+(rows = vertices). Results are cached in `cache`. Returns nothing if the exclusion has no petal/gfa shapes.
+"""
+function petal_gfa_keepouts!(cache,exc_dic,excl_name,petal)
+    key=(String(excl_name),Int(petal))
+    if(haskey(cache,key))
+        return cache[key]
+    end
+    kp="$(excl_name)-petal-segments"; kg="$(excl_name)-gfa-segments"
+    if(!(haskey(exc_dic,kp) && haskey(exc_dic,kg)))
+        cache[key]=nothing
+        return nothing
+    end
+    ang=deg2rad(mod((7+petal)*36.0,360.0)); ca=cos(ang); sa=sin(ang)
+    function rot(P)
+        Q=zeros(Float64,size(P,1),2)
+        for ii in 1:size(P,1)
+            Q[ii,1]=ca*P[ii,1]-sa*P[ii,2]
+            Q[ii,2]=sa*P[ii,1]+ca*P[ii,2]
+        end
+        return Q
+    end
+    cache[key]=(rot(exc_dic[kp]),rot(exc_dic[kg]))
+    return cache[key]
+end
+
+"""shortest distance from point (px,py) to the segment a-b"""
+function point_segment_distance(px,py,ax,ay,bx,by)
+    dx=bx-ax; dy=by-ay; l2=dx*dx+dy*dy
+    t= (l2>0) ? clamp(((px-ax)*dx+(py-ay)*dy)/l2,0.0,1.0) : 0.0
+    return hypot(px-(ax+t*dx),py-(ay+t*dy))
+end
+
+"""shortest distance from point (px,py) to the closed outline poly (closing edge included)"""
+function point_outline_distance(px,py,poly)
+    n=size(poly,1); dmin=Inf
+    for ii in 1:n
+        i2=(ii==n) ? 1 : ii+1
+        dmin=min(dmin,point_segment_distance(px,py,poly[ii,1],poly[ii,2],poly[i2,1],poly[i2,2]))
+    end
+    return dmin
+end
+
+"""
+largest distance of any point of the phi arm from the robot base, for any pose: the phi polygon is
+rigid around the elbow, which is LENGTH_R1 from the base.
+"""
+function phi_arm_reach(pos::POSRobotBody)
+    r=0.0
+    for ii in 1:pos.nseg[2]
+        r=max(r,hypot(pos.head_orig[ii,1],pos.head_orig[ii,2]))
+    end
+    return pos.arms[1]+r
+end
+
+"""
+true if the phi arm of pos (already moved to its target) crosses the petal or GFA outline in `keepouts`
+"""
+function phi_arm_hits_edges(pos::POSRobotBody,keepouts)
+    head=view(pos.head_on_target,1:pos.nseg[2],:)
+    return PolygonEdgesCross(head,keepouts[1]) || PolygonEdgesCross(head,keepouts[2])
+end
+
 """Determines if a positioner is valid of not
 fp_dic : dictionary contaning the status of focal plane
 pp: index of positioner considered
