@@ -47,14 +47,25 @@ function PostFBA_JLD2FITS(config,tracer,group,mypart_zone,npart_zone,;
     #@show keys(file[group]["zone_77"])
     #close(file)
     #return
+    #combined sky "NS" is the top level of the JLD2 file; a cap with no object of this tracer has no group
+    jgroup=jld_group_name(group)
+    if(!check_variable_exists(jldfile,"$(jgroup)/order"))
+        println("POSTP Warning: no $(tracer) objects in group $(group), nothing to write")
+        return
+    end
     #load the zones in group
-    jld_order=traverse_group(jldfile,group)
+    jld_order=traverse_group(jldfile,jgroup)
     
     nzone=size(jld_order["zone_order"],1)
     izone_min,izone_max=partition_indices(nzone,npart_zone,mypart_zone)
+    #more partitions than zones: this partition has nothing to write
+    if(izone_min>izone_max)
+        println("POSTP Warning: partition $(mypart_zone) of $(npart_zone) has no zone ($(nzone) zones), nothing to write")
+        return
+    end
     
     #load the listing to identify the zones which has tile
-    listing=load(jldfile,"$(group)/listing")
+    listing=load(jldfile,"$(jgroup)/listing")
 
     #maximum number of objects among the zones of interest
     max_nobj=maximum(jld_order["nobj"][izone_min:izone_max])
@@ -106,10 +117,10 @@ function PostFBA_JLD2FITS(config,tracer,group,mypart_zone,npart_zone,;
         end
         
         #check the number of tiles in the zone 
-        #if it is one with tileid=0 mean none of the tiles in zone and hence skip
+        #if it is one with tileid=0 mean none of the tiles in zone: the objects are still written,
+        #with FBA_PASS_R1=-1, FBA_LOCATION_R1=-1 and no FBA_BITS set (fill_FBA_results! ignores tile 0)
         if(listing["TILEID"][iz]==[0])
-            println("POSTP Warning: No tile in zone $(iz), skipping")
-            continue
+            println("POSTP Warning: No tile in zone $(iz), writing it with no assignment")
         end
         
         

@@ -193,8 +193,10 @@ function get_bound_focal_plane(xfocal,yfocal,grid_scale;pad=0.2)
     ylim=[minimum(yfocal)-pad,maximum(yfocal)+pad]
     
     
-    nx=floor(Int,(xlim[2]-xlim[1])/grid_scale)
-    ny=floor(Int,(ylim[2]-ylim[1])/grid_scale)
+    #at least 2 cells per axis (a compact set of points gave nx or ny = 0 or 1, i.e. a negative or
+    #infinite dx_zone); with 2 cells the whole range is inside one 3x3 neighbourhood
+    nx=max(floor(Int,(xlim[2]-xlim[1])/grid_scale),2)
+    ny=max(floor(Int,(ylim[2]-ylim[1])/grid_scale),2)
     
     dx_zone=(xlim[2]-xlim[1])/(nx-1)
     dy_zone=(ylim[2]-ylim[1])/(ny-1)
@@ -610,7 +612,8 @@ function angle_diff(hi, low)
     end
     
     diff = hi - low
-    if (diff > 0.0) 
+    #equal angles give 0 (not 2*pi)
+    if (diff >= 0.0) 
         return diff
     else
         return twopi + diff

@@ -55,6 +55,10 @@ function preprocess_tracer(fname,priority_list,priority_frac_list,outfile,
     overwrite=false #To not overwrite the tileid field if it alredy exists
     #For SGC first and then NGC
     for group in ["NGC","SGC"]
+        #skip a cap with no object
+        if(!check_variable_exists(outfile,"$(group)/order"))
+            continue
+        end
         Append_TileID(outfile,tile_file,group,program,npass,tile_radius_indeg,overwrite)
         MockFBA.Append_column(outfile,group,["XYZ_UNIT"]) #Adding XYZ_UNIT
     end
@@ -67,6 +71,10 @@ function preprocess_tracer(fname,priority_list,priority_frac_list,outfile,
     end
     
     for group in ["NGC","SGC",""]
+        #skip a cap with no object
+        if(!check_variable_exists(outfile,"$(group)/order"))
+            continue
+        end
         Indexing_column(outfile,group,["RA","DEC"],nothing)
         udic=LISTING_column(outfile,group,"TILEID",tileid_cols)
     end

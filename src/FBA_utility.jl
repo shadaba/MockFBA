@@ -77,16 +77,19 @@ function sort_by_zone_priority(indsel,zone_num,obj_priority)
     take second variable and set in the minimum difference
     add the scale second variable to first one and sort by this new quantity
     =#
-    #sort by zone
-    izone_sort=sortperm(zone_num)
-    mindif=zone_num[izone_sort[2]]-zone_num[izone_sort[1]]
+    #sort by zone, then by priority (high first) within a zone; the priority part is scaled to [0,0.5]
+    #so it never reaches the next zone number, and is 0 if all priorities are equal (no 0/0)
     
     #scale the second variable
     pr_min=minimum(obj_priority)
     pr_max=maximum(obj_priority)
     
     #new quantity for sorting
-    new_q=(obj_priority .- pr_min)./(pr_max-pr_min)
+    if(pr_max>pr_min)
+        new_q=(obj_priority .- pr_min).*(0.5/(pr_max-pr_min))
+    else
+        new_q=zeros(Float64,size(obj_priority,1))
+    end
     new_q=new_q+zone_num
     izone_sort=sortperm(new_q,rev=:true)
     return izone_sort
@@ -193,6 +196,10 @@ function write_JLD2_file(outfile,zone_num,quant_dic)
         
         count_NS=1
         for sky in ["NGC","SGC"]
+            #a cap with no object has no group
+            if(!("zone_order" in keys(groups_order[sky])))
+                continue
+            end
             groups_order[sky]["beg_index"]=[]
             count=1
             #println("$(sky) $(size(groups_order[sky]["zone_order"])) $(size(groups_order[sky]["nobj"])))")
@@ -266,6 +273,11 @@ function embed_sphere_xyzmatrix(ra,dec)
     return txyz
 end
 
+#group name inside the tracer JLD2 files: the combined sky "NS" is the top level of the file
+function jld_group_name(group)
+    return ((group=="NS") || (group=="")) ? "" : group
+end
+
 function load_DESI_tiles(tile_file,program,pass,sky)
     #=load the tiles from a tile file and select for program and pass if given=#
     
@@ -302,7 +314,8 @@ function load_DESI_tiles(tile_file,program,pass,sky)
     end
         
     #Now apply sky selection if needed
-    if(sky!=nothing)
+    #"NS" (or "") means both caps: no cap selection
+    if((sky!=nothing) && !(sky in ["NS",""]))
         ind_NS=Dict()
         ind_NS["NGC"],ind_NS["SGC"]=split_Galactic_cap(tiles_dic["RA"],tiles_dic["DEC"],"index")
         for qq in quant_need
@@ -379,6 +392,10 @@ function check_variable_exists(jldfile,var_path)
     res=true
     tfile=file
     for tcol in var_arr
+        #skip empty path parts, so a top-level path such as "/order" is found
+        if(tcol=="")
+            continue
+        end
         if(!(tcol in keys(tfile)))
             res=false
             break
@@ -649,12 +666,26 @@ function Load_tracers_intile(config,tracer,tile_id,tile_pass,group,columns;numob
     
     jldfile=config["target"][tracer]["JLDfile" ]
 
+    #no object of this tracer in this cap: return an empty selection
+    jgroup=jld_group_name(group)
+    if(!check_variable_exists(jldfile,"$(jgroup)/order"))
+        tracer_tile=Dict()
+        tracer_tile["ref_group"]=group
+        tracer_tile["TILEID"]=tile_id
+        tracer_tile["PASS"]=tile_pass
+        tracer_tile["index"]=Int64[]
+        for col in columns
+            tracer_tile[col]=Float64[]
+        end
+        tracer_tile["collided"]=zeros(Bool,0,num_fba)
+        return tracer_tile
+    end
 
     #load the zones in group
-    jld_order=traverse_group(jldfile,group)
+    jld_order=traverse_group(jldfile,jgroup)
 
     #load the listing to identify the zones which has tile
-    listing=load(jldfile,"$(group)/listing")
+    listing=load(jldfile,"$(jgroup)/listing")
 
 
     indsel=[]
@@ -819,6 +850,7 @@ function pre_process_FITS2JLD_tracer(fname,priority,priority_frac,outfile)
     #indsel=indsel[1:1000:size(indsel,1)]
     nobj=size(indsel,1)
     println("$(now(UTC)) PREP nobj selection (footprint and nz): $(nobj)")
+    @assert nobj>0 "No object in $(fname) passes the STATUS selection (bits 0 and 1 set): nothing to pre-process for this tracer"
     
     #read ra,dec of selection
     ra=keepat!(read(fin[2],"RA"),indsel)

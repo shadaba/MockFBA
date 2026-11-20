@@ -110,7 +110,8 @@ function sort_ZoneXp_Apply!(zone_xy,Xp,tdic)
     tdic["zone_map"]=Dict()
     uu=1
     tdic["zone_map"][uszone[uu]]=[first_zone[uu],last_zone[uu]]
-    max_per_zone=tdic["zone_map"][uszone[uu]][2]-tdic["zone_map"][uszone[uu]][1]
+    #inclusive range: +1, as for the other zones below
+    max_per_zone=tdic["zone_map"][uszone[uu]][2]-tdic["zone_map"][uszone[uu]][1]+1
     min_per_zone=max_per_zone
     for uu in 2:nunique_zone
         tdic["zone_map"][uszone[uu]]=[first_zone[uu],last_zone[uu]]
@@ -222,6 +223,10 @@ function Prepare_tile(config,tile_index,tiles_dic;group="",tile_date="2019-09-16
     #Load target
     targets_dic=load_targets_intile(config,tile_id,tile_pass,group;
                     columns=["X_UNIT","Y_UNIT","Z_UNIT","PRIORITY"],num_fba=num_fba)
+    #a tile with no target: nothing to project or grid; Run_Single_Tile writes an empty result
+    if(targets_dic["ntarget"]==0)
+        return targets_dic,fp_dic,exc_dic
+    end
 
     #convert to focal plane
     targets_dic["X_FP"], targets_dic["Y_FP"]= xyz_unit_2_xy_focalplane(telra, teldec, 
@@ -797,6 +802,20 @@ function Run_Single_Tile(config,tile_index,tiles_dic;group="",tile_date="2019-09
 	need_ass=targets_dic["ntarget"]-sum(targets_dic["collided"][:,1])
     end
    
+    #tile with no target: write empty arrays for every tracer (same names/types as a normal tile
+    #file) so later passes and post-processing can read it
+    if(targets_dic["ntarget"]==0)
+        fba_jldfile=TileFBA_FileName(config,tile_id)
+        jldopen(fba_jldfile, "a+") do file
+            for tkey in keys(targets_dic["file_map"])
+                tracer=targets_dic["file_map"][tkey][1]
+                write(file,"$(tracer)_Bool_ass",zeros(Bool,0,config["NumFBARealization"]))
+                write(file,"$(tracer)_location_ass",zeros(Int16,0,config["NumFBARealization"]))
+                write(file,"$(tracer)_index",Int64[])
+            end
+        end
+        return string(tile_id," no target in tile, empty result written")
+    end
     #println("Run Single: ",tile_id,' ',config["NumFBARealization"],size(targets_dic["collided"]))
 
     #run the assignment
